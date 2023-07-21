@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use nom::{
     bytes::complete::{tag, take},
     number::complete::{be_u16, be_u32, be_u8},
-    Err, IResult,
+    IResult,
 };
 
 #[derive(Debug)]
@@ -88,11 +88,13 @@ pub enum ConstantPoolInfo {
     Package {
         name_index: u16,
     },
+    Empty, // Only used for index 0; for 1-indexed constant pool
 }
 
 bitflags! {
     #[derive(Debug)]
     pub struct AccessFlags: u16 {
+        const NONE = 0x0000;
         const PUBLIC = 0x0001;
         const FINAL = 0x0010;
         const SUPER = 0x0020;
@@ -108,6 +110,7 @@ bitflags! {
 bitflags! {
     #[derive(Debug)]
     pub struct FieldAccessFlags: u16 {
+        const NONE = 0x0000;
         const PUBLIC = 0x0001;
         const PRIVATE = 0x0002;
         const PROTECTED = 0x0004;
@@ -132,6 +135,7 @@ pub struct FieldInfo {
 bitflags! {
     #[derive(Debug)]
     pub struct MethodAccessFlags: u16 {
+        const NONE = 0x0000;
         const PUBLIC = 0x0001;
         const PRIVATE = 0x0002;
         const PROTECTED = 0x0004;
@@ -154,6 +158,21 @@ pub struct MethodInfo {
     pub descriptor_index: u16,
     pub attributes_count: u16,
     attributes: Vec<Attribute>,
+}
+
+impl MethodInfo {
+    pub fn get_name<'a>(&'_ self, pool: &'a [ConstantPoolInfo]) -> &'a str {
+        if let ConstantPoolInfo::Utf8 {
+            length: _,
+            bytes: _,
+            utf8_str,
+        } = pool.get(self.name_index as usize).unwrap()
+        {
+            utf8_str
+        } else {
+            panic!("Expected Utf8 constant pool info");
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -243,6 +262,7 @@ struct InnerClass {
 bitflags! {
     #[derive(Debug)]
     struct InnerClassAccessFlags: u16 {
+        const NONE = 0x0000;
         const PUBLIC = 0x0001;
         const PRIVATE = 0x0002;
         const PROTECTED = 0x0004;
@@ -595,37 +615,29 @@ enum AttributeKind {
     },
 }
 
+fn be_u16_vec(input: &[u8], count: u16) -> IResult<&[u8], Vec<u16>> {
+    let mut input = input;
+    let mut vec = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let (i, u) = be_u16(input)?;
+        input = i;
+        vec.push(u);
+    }
+    Ok((input, vec))
+}
+
 fn parse_magic_number(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _) = tag([0xCA, 0xFE, 0xBA, 0xBE])(input)?;
     Ok((input, ()))
 }
 
-fn parse_version(input: &[u8]) -> IResult<&[u8], u16> {
-    let (input, version) = be_u16(input)?;
-    Ok((input, version))
-}
-
-fn parse_constant_pool_count(input: &[u8]) -> IResult<&[u8], u16> {
-    let (input, count) = be_u16(input)?;
-    Ok((input, count))
-}
-
 fn parse_constant_pool(input: &[u8], count: u16) -> IResult<&[u8], Vec<ConstantPoolInfo>> {
     let mut input = input;
     let mut constant_pool = Vec::with_capacity(count as usize);
-    for idx in 1..count - 1 {
+    constant_pool.push(ConstantPoolInfo::Empty);
+    for _idx in 1..count - 1 {
         let (i, constant_pool_info) = parse_constant_pool_info(input)?;
         input = i;
-        if let ConstantPoolInfo::Utf8 {
-            length,
-            bytes: _,
-            utf8_str: s,
-        } = constant_pool_info.clone()
-        {
-            println!("idx:{}, length:{}, string:{:?}", idx, length, s);
-        } else {
-            println!("idx:{idx}, {:?}", constant_pool_info);
-        }
         constant_pool.push(constant_pool_info);
     }
     Ok((input, constant_pool))
@@ -782,45 +794,8 @@ fn parse_access_flags(input: &[u8]) -> IResult<&[u8], AccessFlags> {
     Ok((input, AccessFlags::from_bits(access_flags).unwrap()))
 }
 
-fn parse_this_class(input: &[u8]) -> IResult<&[u8], u16> {
-    let (input, this_class) = be_u16(input)?;
-    Ok((input, this_class))
-}
-
-fn parse_super_class(input: &[u8]) -> IResult<&[u8], u16> {
-    let (input, super_class) = be_u16(input)?;
-    Ok((input, super_class))
-}
-
-fn parse_interfaces_count(input: &[u8]) -> IResult<&[u8], u16> {
-    let (input, interfaces_count) = be_u16(input)?;
-    Ok((input, interfaces_count))
-}
-
 fn parse_interfaces(input: &[u8], count: u16) -> IResult<&[u8], Vec<u16>> {
-    let mut input = input;
-    let mut interfaces = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        let (i, interface) = be_u16(input)?;
-        input = i;
-        interfaces.push(interface);
-    }
-    Ok((input, interfaces))
-}
-
-fn parse_fields_count(input: &[u8]) -> IResult<&[u8], u16> {
-    let (input, fields_count) = be_u16(input)?;
-    Ok((input, fields_count))
-}
-
-fn parse_methods_count(input: &[u8]) -> IResult<&[u8], u16> {
-    let (input, methods_count) = be_u16(input)?;
-    Ok((input, methods_count))
-}
-
-fn parse_attributes_count(input: &[u8]) -> IResult<&[u8], u16> {
-    let (input, attributes_count) = be_u16(input)?;
-    Ok((input, attributes_count))
+    be_u16_vec(input, count)
 }
 
 fn parse_exception_table_entry(input: &[u8]) -> IResult<&[u8], ExceptionTableEntry> {
@@ -891,49 +866,59 @@ fn parse_verification_type_info_list(
 
 fn parse_stack_map_frame_entry(input: &[u8]) -> IResult<&[u8], StackMapFrame> {
     let (input, frame_type) = be_u8(input)?;
-    let stack_map_frame_kind = match frame_type {
-        0..=63 => StackMapFrameKind::Same,
+    let (input, stack_map_frame_kind) = match frame_type {
+        0..=63 => (input, StackMapFrameKind::Same),
         64..=127 => {
-            let (_, stack) = parse_verification_type_info(input)?;
-            StackMapFrameKind::SameLocals1StackItem { stack }
+            let (input, stack) = parse_verification_type_info(input)?;
+            (input, StackMapFrameKind::SameLocals1StackItem { stack })
         }
         247 => {
             let (input, offset_delta) = be_u16(input)?;
-            let (_, stack) = parse_verification_type_info(input)?;
-            StackMapFrameKind::SameLocals1StackItemExtended {
-                offset_delta,
-                stack,
-            }
+            let (input, stack) = parse_verification_type_info(input)?;
+            (
+                input,
+                StackMapFrameKind::SameLocals1StackItemExtended {
+                    offset_delta,
+                    stack,
+                },
+            )
         }
         248..=250 => {
-            let (_, offset_delta) = be_u16(input)?;
-            StackMapFrameKind::Chop { offset_delta }
+            let (input, offset_delta) = be_u16(input)?;
+            (input, StackMapFrameKind::Chop { offset_delta })
         }
         251 => {
-            let (_, offset_delta) = be_u16(input)?;
-            StackMapFrameKind::SameExtended { offset_delta }
+            let (input, offset_delta) = be_u16(input)?;
+            (input, StackMapFrameKind::SameExtended { offset_delta })
         }
         252..=254 => {
             let (input, offset_delta) = be_u16(input)?;
-            let (_, locals) = parse_verification_type_info_list(input, frame_type as u16 - 251)?;
-            StackMapFrameKind::Append {
-                offset_delta,
-                locals,
-            }
+            let (input, locals) =
+                parse_verification_type_info_list(input, frame_type as u16 - 251)?;
+            (
+                input,
+                StackMapFrameKind::Append {
+                    offset_delta,
+                    locals,
+                },
+            )
         }
         255 => {
             let (input, offset_delta) = be_u16(input)?;
             let (input, number_of_locals) = be_u16(input)?;
             let (input, locals) = parse_verification_type_info_list(input, number_of_locals)?;
             let (input, number_of_stack_items) = be_u16(input)?;
-            let (_, stack) = parse_verification_type_info_list(input, number_of_stack_items)?;
-            StackMapFrameKind::Full {
-                offset_delta,
-                number_of_locals,
-                locals,
-                number_of_stack_items,
-                stack,
-            }
+            let (input, stack) = parse_verification_type_info_list(input, number_of_stack_items)?;
+            (
+                input,
+                StackMapFrameKind::Full {
+                    offset_delta,
+                    number_of_locals,
+                    locals,
+                    number_of_stack_items,
+                    stack,
+                },
+            )
         }
         _ => Err(nom::Err::Error(nom::error::Error::new(
             input,
@@ -964,13 +949,7 @@ fn parse_stack_map_frame(input: &[u8], count: u16) -> IResult<&[u8], Vec<StackMa
 fn parse_bootstrap_method(input: &[u8]) -> IResult<&[u8], BootstrapMethod> {
     let (input, bootstrap_method_ref) = be_u16(input)?;
     let (input, num_bootstrap_arguments) = be_u16(input)?;
-    let mut input = input;
-    let mut bootstrap_arguments = Vec::with_capacity(num_bootstrap_arguments as usize);
-    for _ in 0..num_bootstrap_arguments {
-        let (i, bootstrap_argument) = be_u16(input)?;
-        input = i;
-        bootstrap_arguments.push(bootstrap_argument);
-    }
+    let (input, bootstrap_arguments) = be_u16_vec(input, num_bootstrap_arguments)?;
     Ok((
         input,
         BootstrapMethod {
@@ -1438,13 +1417,7 @@ fn parse_exports_info(input: &[u8]) -> IResult<&[u8], ModuleExports> {
     let (input, exports_index) = be_u16(input)?;
     let (input, exports_flags) = be_u16(input)?;
     let (input, exports_to_count) = be_u16(input)?;
-    let mut input = input;
-    let mut exports_to_index = Vec::with_capacity(exports_to_count as usize);
-    for _ in 0..exports_to_count {
-        let (i, exports_to_index_entry) = be_u16(input)?;
-        input = i;
-        exports_to_index.push(exports_to_index_entry);
-    }
+    let (input, exports_to_index) = be_u16_vec(input, exports_to_count)?;
     Ok((
         input,
         ModuleExports {
@@ -1460,13 +1433,7 @@ fn parse_opens_info(input: &[u8]) -> IResult<&[u8], ModuleOpens> {
     let (input, opens_index) = be_u16(input)?;
     let (input, opens_flags) = be_u16(input)?;
     let (input, opens_to_count) = be_u16(input)?;
-    let mut input = input;
-    let mut opens_to_index = Vec::with_capacity(opens_to_count as usize);
-    for _ in 0..opens_to_count {
-        let (i, opens_to_index_entry) = be_u16(input)?;
-        input = i;
-        opens_to_index.push(opens_to_index_entry);
-    }
+    let (input, opens_to_index) = be_u16_vec(input, opens_to_count)?;
     Ok((
         input,
         ModuleOpens {
@@ -1481,13 +1448,7 @@ fn parse_opens_info(input: &[u8]) -> IResult<&[u8], ModuleOpens> {
 fn parse_provides_info(input: &[u8]) -> IResult<&[u8], ModuleProvides> {
     let (input, provides_index) = be_u16(input)?;
     let (input, provides_with_count) = be_u16(input)?;
-    let mut input = input;
-    let mut provides_with_index = Vec::with_capacity(provides_with_count as usize);
-    for _ in 0..provides_with_count {
-        let (i, provides_with_index_entry) = be_u16(input)?;
-        input = i;
-        provides_with_index.push(provides_with_index_entry);
-    }
+    let (input, provides_with_index) = be_u16_vec(input, provides_with_count)?;
     Ok((
         input,
         ModuleProvides {
@@ -1498,61 +1459,80 @@ fn parse_provides_info(input: &[u8]) -> IResult<&[u8], ModuleProvides> {
     ))
 }
 
-pub fn parse_class_file(input: &[u8]) -> Option<ClassFile> {
+pub fn parse_class_file(input: &[u8]) -> IResult<&[u8], ClassFile> {
     let (input, _) = parse_magic_number(input).unwrap();
-    let (input, minor_version) = parse_version(input).unwrap();
-    let (input, major_version) = parse_version(input).unwrap();
+    let (input, minor_version) = be_u16(input)?;
+    let (input, major_version) = be_u16(input)?;
 
-    let (input, constant_pool_count) = parse_constant_pool_count(input).unwrap();
+    let (input, constant_pool_count) = be_u16(input)?;
 
     let (input, constant_pool) = parse_constant_pool(input, constant_pool_count).unwrap();
+
+    // for (idx, c) in constant_pool.iter().enumerate() {
+    //     if let ConstantPoolInfo::Utf8 {
+    //         length,
+    //         bytes: _,
+    //         utf8_str: s,
+    //     } = c
+    //     {
+    //         println!("idx:{}, length:{}, string:{:?}", idx, length, s);
+    //     } else {
+    //         println!("idx:{idx}, {:?}", c);
+    //     }
+    // }
 
     let parser = ClassFileParser {
         constant_pool: &constant_pool,
     };
 
+    let parse_inf_in = input[2 + 2 + 2 + 2];
+    println!("{}", parse_inf_in);
+
     let (input, access_flags) = parse_access_flags(input).unwrap();
 
-    let (input, this_class) = parse_this_class(input).unwrap();
+    let (input, this_class) = be_u16(input)?;
 
-    let (input, super_class) = parse_super_class(input).unwrap();
+    let (input, super_class) = be_u16(input)?;
 
-    let (input, interfaces_count) = parse_interfaces_count(input).unwrap();
+    let (input, interfaces_count) = be_u16(input)?;
 
     let (input, interfaces) = parse_interfaces(input, interfaces_count).unwrap();
 
-    let (input, fields_count) = parse_fields_count(input).unwrap();
+    let (input, fields_count) = be_u16(input)?;
 
     let (input, fields) = parser.parse_fields(input, fields_count).unwrap();
 
-    let (input, methods_count) = parse_methods_count(input).unwrap();
+    let (input, methods_count) = be_u16(input)?;
 
     let (input, methods) = parser.parse_methods(input, methods_count).unwrap();
 
-    let (input, attributes_count) = parse_attributes_count(input).unwrap();
+    let (input, attributes_count) = be_u16(input)?;
 
     let (input, attributes) = parser.parse_attributes(input, attributes_count).unwrap();
 
     if !input.is_empty() {
-        None
+        panic!()
     } else {
-        Some(ClassFile {
-            minor_version,
-            major_version,
-            constant_pool_count,
-            constant_pool,
-            access_flags,
-            this_class,
-            super_class,
-            interfaces_count,
-            interfaces,
-            fields_count,
-            fields,
-            methods_count,
-            methods,
-            attributes_count,
-            attributes,
-        })
+        Ok((
+            input,
+            ClassFile {
+                minor_version,
+                major_version,
+                constant_pool_count,
+                constant_pool,
+                access_flags,
+                this_class,
+                super_class,
+                interfaces_count,
+                interfaces,
+                fields_count,
+                fields,
+                methods_count,
+                methods,
+                attributes_count,
+                attributes,
+            },
+        ))
     }
 }
 
@@ -1601,7 +1581,7 @@ impl<'a> ClassFileParser<'a> {
     ) -> IResult<&'b [u8], Vec<Attribute>> {
         let mut input = input;
         let mut attributes = Vec::with_capacity(count as usize);
-        for _ in 0..count {
+        for _idx in 0..count {
             let (i, attribute) = self.parse_attribute_info(input)?;
             input = i;
             attributes.push(attribute);
@@ -1618,16 +1598,125 @@ impl<'a> ClassFileParser<'a> {
                 bytes: _,
                 utf8_str: s,
             } => s,
-            _ => Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Tag,
-            )))?,
+            _ => panic!("Invalid attribute name"),
+            // _ => Err(nom::Err::Error(nom::error::Error::new(
+            //     input,
+            //     nom::error::ErrorKind::Tag,
+            // )))?,
         };
+        if ![
+            "ConstantValue",
+            "Code",
+            "StackMapTable",
+            "BootstrapMethods",
+            "NestHost",
+            "NestMembers",
+            "PermittedSubclasses",
+            "Exceptions",
+            "InnerClasses",
+            "EnclosingMethod",
+            "Synthetic",
+            "Signature",
+            "RuntimeVisibleAnnotations",
+            "RuntimeInvisibleAnnotations",
+            "RuntimeVisibleParameterAnnotations",
+            "RuntimeInvisibleParameterAnnotations",
+            "RuntimeVisibleTypeAnnotations",
+            "RuntimeInvisibleTypeAnnotations",
+            "AnnotationDefault",
+            "MethodParameters",
+            "Module",
+            "ModulePackages",
+            "ModuleMainClass",
+            "Record",
+            "SourceFile",
+            "SourceDebugExtension",
+            "LineNumberTable",
+            "LocalVariableTable",
+            "LocalVariableTypeTable",
+            "Deprecated",
+            "RuntimeVisibleAnnotations",
+            "RuntimeInvisibleAnnotations",
+            "RuntimeVisibleParameterAnnotations",
+            "RuntimeInvisibleParameterAnnotations",
+            "RuntimeVisibleTypeAnnotations",
+            "RuntimeInvisibleTypeAnnotations",
+            "AnnotationDefault",
+            "MethodParameters",
+            "Module",
+            "ModulePackages",
+            "ModuleMainClass",
+            "Record",
+            "SourceFile",
+            "SourceDebugExtension",
+            "LineNumberTable",
+            "LocalVariableTable",
+            "LocalVariableTypeTable",
+            "Deprecated",
+        ]
+        .contains(&(attribute_name as &str))
+        {
+            panic!()
+        }
+
+        let not_skipping_attribute = [
+            "ConstantValue",
+            "BootstrapMethods",
+            "NestHost",
+            "NestMembers",
+            "PermittedSubclasses",
+            "Exceptions",
+            "InnerClasses",
+            "EnclosingMethod",
+            "Synthetic",
+            "Signature",
+            "RuntimeVisibleAnnotations",
+            "RuntimeInvisibleAnnotations",
+            "RuntimeVisibleParameterAnnotations",
+            "RuntimeInvisibleParameterAnnotations",
+            "RuntimeVisibleTypeAnnotations",
+            "RuntimeInvisibleTypeAnnotations",
+            "AnnotationDefault",
+            "MethodParameters",
+            "Module",
+            "ModulePackages",
+            "ModuleMainClass",
+            "Record",
+            "SourceFile",
+            "SourceDebugExtension",
+            "Deprecated",
+            "RuntimeVisibleAnnotations",
+            "RuntimeInvisibleAnnotations",
+            "RuntimeVisibleParameterAnnotations",
+            "RuntimeInvisibleParameterAnnotations",
+            "RuntimeVisibleTypeAnnotations",
+            "RuntimeInvisibleTypeAnnotations",
+            "AnnotationDefault",
+            "MethodParameters",
+            "Module",
+            "ModulePackages",
+            "ModuleMainClass",
+            "Record",
+            "SourceFile",
+            "SourceDebugExtension",
+            "Deprecated",
+        ];
 
         let (input, attribute_length) = be_u32(input)?;
         let (input, info) = take(attribute_length)(input)?;
 
-        let (_, kind) = match attribute_name as &str {
+        if !not_skipping_attribute.contains(&(attribute_name as &str)) {
+            return Ok((
+                input,
+                Attribute {
+                    attribute_name_index,
+                    attribute_length,
+                    kind: AttributeKind::Unknown,
+                },
+            ));
+        }
+
+        let (out, kind) = match attribute_name as &str {
             "ConstantValue" => {
                 let (info, constant_value_index) = be_u16(info)?;
                 (
@@ -1687,13 +1776,8 @@ impl<'a> ClassFileParser<'a> {
                 (info, AttributeKind::NestHost { host_class_index })
             }
             "NestMembers" => {
-                let (mut info, number_of_classes) = be_u16(info)?;
-                let mut classes = Vec::with_capacity(number_of_classes as usize);
-                for _ in 0..number_of_classes {
-                    let (i, class_index) = be_u16(info)?;
-                    info = i;
-                    classes.push(class_index);
-                }
+                let (info, number_of_classes) = be_u16(info)?;
+                let (info, classes) = be_u16_vec(info, number_of_classes)?;
 
                 (
                     info,
@@ -1704,14 +1788,8 @@ impl<'a> ClassFileParser<'a> {
                 )
             }
             "PermittedSubclasses" => {
-                let (mut info, number_of_classes) = be_u16(info)?;
-                let mut classes = Vec::with_capacity(number_of_classes as usize);
-                for _ in 0..number_of_classes {
-                    let (i, class_index) = be_u16(info)?;
-                    info = i;
-                    classes.push(class_index);
-                }
-
+                let (info, number_of_classes) = be_u16(info)?;
+                let (info, classes) = be_u16_vec(info, number_of_classes)?;
                 (
                     info,
                     AttributeKind::PermittedSubclasses {
@@ -1721,13 +1799,8 @@ impl<'a> ClassFileParser<'a> {
                 )
             }
             "Exceptions" => {
-                let (mut info, number_of_exceptions) = be_u16(info)?;
-                let mut exception_index_table = Vec::with_capacity(number_of_exceptions as usize);
-                for _ in 0..number_of_exceptions {
-                    let (i, exception_index) = be_u16(info)?;
-                    info = i;
-                    exception_index_table.push(exception_index);
-                }
+                let (info, number_of_exceptions) = be_u16(info)?;
+                let (info, exception_index_table) = be_u16_vec(info, number_of_exceptions)?;
                 (
                     info,
                     AttributeKind::Exceptions {
@@ -1958,13 +2031,8 @@ impl<'a> ClassFileParser<'a> {
                     opens.push(opens_info);
                 }
 
-                let (mut info, uses_count) = be_u16(info)?;
-                let mut uses_index = Vec::with_capacity(uses_count as usize);
-                for _ in 0..uses_count {
-                    let (i, uses_index_info) = be_u16(info)?;
-                    info = i;
-                    uses_index.push(uses_index_info);
-                }
+                let (info, uses_count) = be_u16(info)?;
+                let (info, uses_index) = be_u16_vec(info, uses_count)?;
 
                 let (mut info, provides_count) = be_u16(info)?;
                 let mut provides = Vec::with_capacity(provides_count as usize);
@@ -1995,13 +2063,7 @@ impl<'a> ClassFileParser<'a> {
             }
             "ModulePackages" => {
                 let (info, package_count) = be_u16(info)?;
-                let mut input = info;
-                let mut package_index = Vec::with_capacity(package_count as usize);
-                for _ in 0..package_count {
-                    let (i, package_index_entry) = be_u16(input)?;
-                    input = i;
-                    package_index.push(package_index_entry);
-                }
+                let (input, package_index) = be_u16_vec(info, package_count)?;
                 (
                     input,
                     AttributeKind::ModulePackages {
@@ -2020,6 +2082,10 @@ impl<'a> ClassFileParser<'a> {
             }
         };
 
+        if !out.is_empty() {
+            panic!("Attribute parsing error");
+        }
+
         Ok((
             input,
             Attribute {
@@ -2037,7 +2103,7 @@ impl<'a> ClassFileParser<'a> {
     ) -> IResult<&'b [u8], Vec<MethodInfo>> {
         let mut input = input;
         let mut methods = Vec::with_capacity(count as usize);
-        for _ in 0..count {
+        for _idx in 0..count {
             let (i, method) = self.parse_method_info(input)?;
             input = i;
             methods.push(method);
