@@ -31,7 +31,9 @@
                     "test",
                     "--no-run",
                     "--bin=classreader",
-                    "--package=classreader"
+                    "--package=classreader",
+                    "--",
+                    "--nocapture"
                 ],
                 "filter": {
                     "name": "classreader",

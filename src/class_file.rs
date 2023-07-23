@@ -21,7 +21,7 @@ pub struct ClassFile {
     pub methods_count: u16,
     pub methods: Vec<MethodInfo>,
     pub attributes_count: u16,
-    attributes: Vec<Attribute>,
+    pub attributes: Vec<Attribute>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +129,35 @@ pub struct FieldInfo {
     pub name_index: u16,
     pub descriptor_index: u16,
     pub attributes_count: u16,
-    attributes: Vec<Attribute>,
+    pub attributes: Vec<Attribute>,
+}
+
+impl FieldInfo {
+    pub fn get_name<'a>(&'_ self, pool: &'a [ConstantPoolInfo]) -> &'a str {
+        if let ConstantPoolInfo::Utf8 {
+            length: _,
+            bytes: _,
+            utf8_str,
+        } = pool.get(self.name_index as usize).unwrap()
+        {
+            utf8_str
+        } else {
+            panic!("Expected Utf8 constant pool info");
+        }
+    }
+
+    pub fn get_descriptor<'a>(&'_ self, pool: &'a [ConstantPoolInfo]) -> &'a str {
+        if let ConstantPoolInfo::Utf8 {
+            length: _,
+            bytes: _,
+            utf8_str,
+        } = pool.get(self.descriptor_index as usize).unwrap()
+        {
+            utf8_str
+        } else {
+            panic!("Expected Utf8 constant pool info");
+        }
+    }
 }
 
 bitflags! {
@@ -157,7 +185,7 @@ pub struct MethodInfo {
     pub name_index: u16,
     pub descriptor_index: u16,
     pub attributes_count: u16,
-    attributes: Vec<Attribute>,
+    pub attributes: Vec<Attribute>,
 }
 
 impl MethodInfo {
@@ -167,6 +195,19 @@ impl MethodInfo {
             bytes: _,
             utf8_str,
         } = pool.get(self.name_index as usize).unwrap()
+        {
+            utf8_str
+        } else {
+            panic!("Expected Utf8 constant pool info");
+        }
+    }
+
+    pub fn get_descriptor<'a>(&'_ self, pool: &'a [ConstantPoolInfo]) -> &'a str {
+        if let ConstantPoolInfo::Utf8 {
+            length: _,
+            bytes: _,
+            utf8_str,
+        } = pool.get(self.descriptor_index as usize).unwrap()
         {
             utf8_str
         } else {
@@ -183,7 +224,7 @@ pub struct AttributeInfo {
 }
 
 #[derive(Debug)]
-struct ExceptionTableEntry {
+pub struct ExceptionTableEntry {
     start_pc: u16,
     end_pc: u16,
     handler_pc: u16,
@@ -233,26 +274,26 @@ enum StackMapFrameKind {
 }
 
 #[derive(Debug)]
-struct StackMapFrame {
+pub struct StackMapFrame {
     frame_type: u8,
     kind: StackMapFrameKind,
 }
 
 #[derive(Debug)]
-struct BootstrapMethod {
+pub struct BootstrapMethod {
     bootstrap_method_ref: u16,
     num_bootstrap_arguments: u16,
     bootstrap_arguments: Vec<u16>,
 }
 
 #[derive(Debug)]
-struct Parameter {
+pub struct Parameter {
     name_index: u16,
     access_flags: u16,
 }
 
 #[derive(Debug)]
-struct InnerClass {
+pub struct InnerClass {
     inner_class_info_index: u16,
     outer_class_info_index: u16,
     inner_name_index: u16,
@@ -277,7 +318,7 @@ bitflags! {
 }
 
 #[derive(Debug)]
-struct RecordComponent {
+pub struct RecordComponent {
     name_index: u16,
     descriptor_index: u16,
     attributes_count: u16,
@@ -285,13 +326,13 @@ struct RecordComponent {
 }
 
 #[derive(Debug)]
-struct LineNumberTableEntry {
+pub struct LineNumberTableEntry {
     start_pc: u16,
     line_number: u16,
 }
 
 #[derive(Debug)]
-struct LocalVariableTableEntry {
+pub struct LocalVariableTableEntry {
     start_pc: u16,
     length: u16,
     name_index: u16,
@@ -300,7 +341,7 @@ struct LocalVariableTableEntry {
 }
 
 #[derive(Debug)]
-struct LocalVariableTypeTableEntry {
+pub struct LocalVariableTypeTableEntry {
     start_pc: u16,
     length: u16,
     name_index: u16,
@@ -309,7 +350,7 @@ struct LocalVariableTypeTableEntry {
 }
 
 #[derive(Debug)]
-struct Annotation {
+pub struct Annotation {
     type_index: u16,
     num_element_value_pairs: u16,
     element_value_pairs: Vec<ElementValuePair>,
@@ -322,7 +363,7 @@ struct ElementValuePair {
 }
 
 #[derive(Debug)]
-enum ElementValue {
+pub enum ElementValue {
     Byte {
         const_value_index: u16,
     },
@@ -367,13 +408,13 @@ enum ElementValue {
 }
 
 #[derive(Debug)]
-struct ParameterAnnotation {
+pub struct ParameterAnnotation {
     num_annotations: u16,
     annotations: Vec<Annotation>,
 }
 
 #[derive(Debug)]
-struct TypeAnnotation {
+pub struct TypeAnnotation {
     target_type: u8,
     target_info: TargetInfo,
     target_path: TypePath,
@@ -424,14 +465,14 @@ enum TargetInfoKind {
 }
 
 #[derive(Debug)]
-struct LocalVarTarget {
+pub struct LocalVarTarget {
     start_pc: u16,
     length: u16,
     index: u16,
 }
 
 #[derive(Debug)]
-struct TypePath {
+pub struct TypePath {
     path_length: u8,
     path: Vec<Path>,
 }
@@ -443,14 +484,14 @@ struct Path {
 }
 
 #[derive(Debug)]
-struct ModuleRequires {
+pub struct ModuleRequires {
     requires_index: u16,
     requires_flags: u16,
     requires_version_index: u16,
 }
 
 #[derive(Debug)]
-struct ModuleExports {
+pub struct ModuleExports {
     exports_index: u16,
     exports_flags: u16,
     exports_to_count: u16,
@@ -458,7 +499,7 @@ struct ModuleExports {
 }
 
 #[derive(Debug)]
-struct ModuleOpens {
+pub struct ModuleOpens {
     opens_index: u16,
     opens_flags: u16,
     opens_to_count: u16,
@@ -466,21 +507,21 @@ struct ModuleOpens {
 }
 
 #[derive(Debug)]
-struct ModuleProvides {
+pub struct ModuleProvides {
     provides_index: u16,
     provides_with_count: u16,
     provides_with_index: Vec<u16>,
 }
 
 #[derive(Debug)]
-struct Attribute {
+pub struct Attribute {
     attribute_name_index: u16,
     attribute_length: u32,
-    kind: AttributeKind,
+    pub kind: AttributeKind,
 }
 
 #[derive(Debug)]
-enum AttributeKind {
+pub enum AttributeKind {
     // Critical to correct interpretation
     ConstantValue {
         constant_value_index: u16,
@@ -635,10 +676,27 @@ fn parse_constant_pool(input: &[u8], count: u16) -> IResult<&[u8], Vec<ConstantP
     let mut input = input;
     let mut constant_pool = Vec::with_capacity(count as usize);
     constant_pool.push(ConstantPoolInfo::Empty);
-    for _idx in 1..count - 1 {
+
+    let mut skip_flag = false;
+    for _idx in 1..count {
+        if skip_flag {
+            constant_pool.push(ConstantPoolInfo::Empty);
+            skip_flag = false;
+            continue;
+        }
+
         let (i, constant_pool_info) = parse_constant_pool_info(input)?;
         input = i;
-        constant_pool.push(constant_pool_info);
+
+        if matches!(
+            constant_pool_info,
+            ConstantPoolInfo::Long { .. } | ConstantPoolInfo::Double { .. }
+        ) {
+            constant_pool.push(constant_pool_info);
+            skip_flag = true;
+        } else {
+            constant_pool.push(constant_pool_info);
+        }
     }
     Ok((input, constant_pool))
 }
@@ -1468,25 +1526,9 @@ pub fn parse_class_file(input: &[u8]) -> IResult<&[u8], ClassFile> {
 
     let (input, constant_pool) = parse_constant_pool(input, constant_pool_count).unwrap();
 
-    // for (idx, c) in constant_pool.iter().enumerate() {
-    //     if let ConstantPoolInfo::Utf8 {
-    //         length,
-    //         bytes: _,
-    //         utf8_str: s,
-    //     } = c
-    //     {
-    //         println!("idx:{}, length:{}, string:{:?}", idx, length, s);
-    //     } else {
-    //         println!("idx:{idx}, {:?}", c);
-    //     }
-    // }
-
     let parser = ClassFileParser {
         constant_pool: &constant_pool,
     };
-
-    let parse_inf_in = input[2 + 2 + 2 + 2];
-    println!("{}", parse_inf_in);
 
     let (input, access_flags) = parse_access_flags(input).unwrap();
 
@@ -1604,117 +1646,9 @@ impl<'a> ClassFileParser<'a> {
             //     nom::error::ErrorKind::Tag,
             // )))?,
         };
-        if ![
-            "ConstantValue",
-            "Code",
-            "StackMapTable",
-            "BootstrapMethods",
-            "NestHost",
-            "NestMembers",
-            "PermittedSubclasses",
-            "Exceptions",
-            "InnerClasses",
-            "EnclosingMethod",
-            "Synthetic",
-            "Signature",
-            "RuntimeVisibleAnnotations",
-            "RuntimeInvisibleAnnotations",
-            "RuntimeVisibleParameterAnnotations",
-            "RuntimeInvisibleParameterAnnotations",
-            "RuntimeVisibleTypeAnnotations",
-            "RuntimeInvisibleTypeAnnotations",
-            "AnnotationDefault",
-            "MethodParameters",
-            "Module",
-            "ModulePackages",
-            "ModuleMainClass",
-            "Record",
-            "SourceFile",
-            "SourceDebugExtension",
-            "LineNumberTable",
-            "LocalVariableTable",
-            "LocalVariableTypeTable",
-            "Deprecated",
-            "RuntimeVisibleAnnotations",
-            "RuntimeInvisibleAnnotations",
-            "RuntimeVisibleParameterAnnotations",
-            "RuntimeInvisibleParameterAnnotations",
-            "RuntimeVisibleTypeAnnotations",
-            "RuntimeInvisibleTypeAnnotations",
-            "AnnotationDefault",
-            "MethodParameters",
-            "Module",
-            "ModulePackages",
-            "ModuleMainClass",
-            "Record",
-            "SourceFile",
-            "SourceDebugExtension",
-            "LineNumberTable",
-            "LocalVariableTable",
-            "LocalVariableTypeTable",
-            "Deprecated",
-        ]
-        .contains(&(attribute_name as &str))
-        {
-            panic!()
-        }
-
-        let not_skipping_attribute = [
-            "ConstantValue",
-            "BootstrapMethods",
-            "NestHost",
-            "NestMembers",
-            "PermittedSubclasses",
-            "Exceptions",
-            "InnerClasses",
-            "EnclosingMethod",
-            "Synthetic",
-            "Signature",
-            "RuntimeVisibleAnnotations",
-            "RuntimeInvisibleAnnotations",
-            "RuntimeVisibleParameterAnnotations",
-            "RuntimeInvisibleParameterAnnotations",
-            "RuntimeVisibleTypeAnnotations",
-            "RuntimeInvisibleTypeAnnotations",
-            "AnnotationDefault",
-            "MethodParameters",
-            "Module",
-            "ModulePackages",
-            "ModuleMainClass",
-            "Record",
-            "SourceFile",
-            "SourceDebugExtension",
-            "Deprecated",
-            "RuntimeVisibleAnnotations",
-            "RuntimeInvisibleAnnotations",
-            "RuntimeVisibleParameterAnnotations",
-            "RuntimeInvisibleParameterAnnotations",
-            "RuntimeVisibleTypeAnnotations",
-            "RuntimeInvisibleTypeAnnotations",
-            "AnnotationDefault",
-            "MethodParameters",
-            "Module",
-            "ModulePackages",
-            "ModuleMainClass",
-            "Record",
-            "SourceFile",
-            "SourceDebugExtension",
-            "Deprecated",
-        ];
 
         let (input, attribute_length) = be_u32(input)?;
         let (input, info) = take(attribute_length)(input)?;
-
-        if !not_skipping_attribute.contains(&(attribute_name as &str)) {
-            return Ok((
-                input,
-                Attribute {
-                    attribute_name_index,
-                    attribute_length,
-                    kind: AttributeKind::Unknown,
-                },
-            ));
-        }
 
         let (out, kind) = match attribute_name as &str {
             "ConstantValue" => {
@@ -1762,7 +1696,8 @@ impl<'a> ClassFileParser<'a> {
             }
             "BootstrapMethods" => {
                 let (info, num_bootstrap_methods) = be_u16(info)?;
-                let (_, bootstrap_methods) = parse_bootstrap_methods(info, num_bootstrap_methods)?;
+                let (info, bootstrap_methods) =
+                    parse_bootstrap_methods(info, num_bootstrap_methods)?;
                 (
                     info,
                     AttributeKind::BootstrapMethods {
@@ -2083,7 +2018,7 @@ impl<'a> ClassFileParser<'a> {
         };
 
         if !out.is_empty() {
-            panic!("Attribute parsing error");
+            panic!("Attribute parsing error, remaining bytes: {out:x?}, current kind: {kind:?}");
         }
 
         Ok((
