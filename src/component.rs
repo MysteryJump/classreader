@@ -1,14 +1,14 @@
 use crate::{
     class_file::{
-        AccessFlags, Attribute, AttributeKind, ClassFile, ConstantPoolInfo, FieldAccessFlags,
-        FieldInfo, MethodAccessFlags, MethodInfo,
+        AccessFlags, AttributeKind, ClassFile, ConstantPoolInfo, FieldAccessFlags, FieldInfo,
+        MethodAccessFlags, MethodInfo,
     },
     descriptor::{
-        self, parse_field_descriptor, parse_method_descriptor, BaseTy, FieldDescriptor, FieldTy,
+        parse_field_descriptor, parse_method_descriptor, BaseTy, FieldDescriptor, FieldTy,
         ReturnDescriptor,
     },
     signature::{
-        self, parse_class_signature, parse_field_signature, parse_method_signature, BaseType,
+        parse_class_signature, parse_field_signature, parse_method_signature, BaseType,
         ClassSignature, FieldSignature, MethodSignature, ReferenceTypeSignature, TypeSignature,
     },
 };
@@ -84,16 +84,6 @@ pub struct Field {
     modifiers: String,
 }
 
-// struct Interface {
-//     access_flags: u16,
-//     this_class: u16,
-//     super_class: u16,
-//     interfaces: Vec<u16>,
-//     fields: Vec<Field>,
-//     methods: Vec<Method>,
-//     attributes: Vec<AttributeInfo>,
-// }
-
 // struct Module {
 //     access_flags: u16,
 //     name_index: u16,
@@ -127,21 +117,8 @@ pub struct ExtractorContext {
 
 impl<'a> ComponentExtractor<'a, '_> {
     fn extract_component(&self) -> Component {
-        let mut class_file_name = None;
+        let class_file_name = self.get_source_file_name();
         let class_file = &self.class_file;
-        for attr in &class_file.attributes {
-            if let AttributeKind::SourceFile { sourcefile_index } = attr.kind {
-                let name_info = &class_file.constant_pool[sourcefile_index as usize];
-                if let ConstantPoolInfo::Utf8 {
-                    bytes: _,
-                    length: _,
-                    utf8_str,
-                } = name_info
-                {
-                    class_file_name = Some(utf8_str);
-                }
-            }
-        }
 
         if class_file.access_flags.contains(AccessFlags::INTERFACE) {
             todo!()
@@ -300,7 +277,7 @@ impl<'a> ComponentExtractor<'a, '_> {
         None
     }
 
-    pub fn extract_method_info(&self, method_info: &MethodInfo) -> Option<Method> {
+    fn extract_method_info(&self, method_info: &MethodInfo) -> Option<Method> {
         if self.is_skippable_method(&method_info.access_flags) {
             return None;
         }
@@ -355,7 +332,7 @@ impl<'a> ComponentExtractor<'a, '_> {
         })
     }
 
-    pub fn extract_field_info(&self, field_info: &FieldInfo) -> Option<Field> {
+    fn extract_field_info(&self, field_info: &FieldInfo) -> Option<Field> {
         if self.is_skippable_field(&field_info.access_flags) {
             return None;
         }
@@ -381,13 +358,45 @@ impl<'a> ComponentExtractor<'a, '_> {
     }
 
     fn is_skippable_field(&self, access_flag: &FieldAccessFlags) -> bool {
-        let access_flag = access_flag.into();
-        !self.context.target_access_modifiers.contains(access_flag)
+        println!("{:?}", access_flag);
+        if self.context.target_access_modifiers.is_empty() {
+            false
+        } else {
+            !self
+                .context
+                .target_access_modifiers
+                .contains(access_flag.into())
+        }
     }
 
     fn is_skippable_method(&self, access_flag: &MethodAccessFlags) -> bool {
-        let access_flag = access_flag.into();
-        !self.context.target_access_modifiers.contains(access_flag)
+        if self.context.target_access_modifiers.is_empty() {
+            false
+        } else {
+            !self
+                .context
+                .target_access_modifiers
+                .contains(access_flag.into())
+        }
+    }
+
+    fn get_source_file_name(&self) -> Option<&str> {
+        let mut class_file_name = None;
+        for attr in &self.class_file.attributes {
+            if let AttributeKind::SourceFile { sourcefile_index } = attr.kind {
+                let name_info = &self.class_file.constant_pool[sourcefile_index as usize];
+                if let ConstantPoolInfo::Utf8 {
+                    bytes: _,
+                    length: _,
+                    utf8_str,
+                } = name_info
+                {
+                    class_file_name = Some(utf8_str as &str);
+                }
+            }
+        }
+
+        class_file_name
     }
 }
 
