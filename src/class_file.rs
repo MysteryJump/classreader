@@ -92,7 +92,7 @@ pub enum ConstantPoolInfo {
 }
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct AccessFlags: u16 {
         const NONE = 0x0000;
         const PUBLIC = 0x0001;
@@ -108,7 +108,7 @@ bitflags! {
 }
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct FieldAccessFlags: u16 {
         const NONE = 0x0000;
         const PUBLIC = 0x0001;
@@ -161,7 +161,7 @@ impl FieldInfo {
 }
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct MethodAccessFlags: u16 {
         const NONE = 0x0000;
         const PUBLIC = 0x0001;
@@ -301,7 +301,7 @@ pub struct InnerClass {
 }
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct InnerClassAccessFlags: u16 {
         const NONE = 0x0000;
         const PUBLIC = 0x0001;

@@ -1,6 +1,8 @@
 use class_file::parse_class_file;
 use component::extract_component;
 
+use crate::component::{AccessModifier, ExtractorContext};
+
 mod class_file;
 mod component;
 mod descriptor;
@@ -16,6 +18,11 @@ fn main() {
     // class_file.methods.iter().for_each(|method| {
     //     println!("{}", method.get_name(&class_file.constant_pool));
     // });
-    let component = extract_component(&class_file);
+
+    let extractor_ctxt = ExtractorContext {
+        target_access_modifiers: AccessModifier::PUBLIC & AccessModifier::PROTECTED,
+    };
+
+    let component = extract_component(&class_file, &extractor_ctxt);
     println!("{:#?}", component);
 }

@@ -1,6 +1,7 @@
 use crate::{
     class_file::{
-        AccessFlags, Attribute, AttributeKind, ClassFile, ConstantPoolInfo, FieldInfo, MethodInfo,
+        AccessFlags, Attribute, AttributeKind, ClassFile, ConstantPoolInfo, FieldAccessFlags,
+        FieldInfo, MethodAccessFlags, MethodInfo,
     },
     descriptor::{
         self, parse_field_descriptor, parse_method_descriptor, BaseTy, FieldDescriptor, FieldTy,
@@ -105,11 +106,26 @@ pub struct Field {
 //     attributes: Vec<AttributeInfo>,
 // }
 
-struct ComponentExtractor<'a> {
+struct ComponentExtractor<'a, 'ctxt> {
     class_file: &'a ClassFile,
+    context: &'ctxt ExtractorContext,
 }
 
-impl<'a> ComponentExtractor<'a> {
+bitflags::bitflags! {
+    #[derive(Debug)]
+    pub struct AccessModifier: u16 {
+        const PRIVATE = 0x0001;
+        const PROTECTED = 0x0002;
+        const PUBLIC = 0x0004;
+        const DEFAULT = 0x0008;
+    }
+}
+
+pub struct ExtractorContext {
+    pub target_access_modifiers: AccessModifier,
+}
+
+impl<'a> ComponentExtractor<'a, '_> {
     fn extract_component(&self) -> Component {
         let mut class_file_name = None;
         let class_file = &self.class_file;
@@ -199,13 +215,13 @@ impl<'a> ComponentExtractor<'a> {
         let methods = class_file
             .methods
             .iter()
-            .map(|x| self.extract_method_info(x))
+            .filter_map(|x| self.extract_method_info(x))
             .collect::<Vec<_>>();
 
         let fields = class_file
             .fields
             .iter()
-            .map(|x| self.extract_field_info(x))
+            .filter_map(|x| self.extract_field_info(x))
             .collect::<Vec<_>>();
 
         Component {
@@ -284,7 +300,11 @@ impl<'a> ComponentExtractor<'a> {
         None
     }
 
-    pub fn extract_method_info(&self, method_info: &MethodInfo) -> Method {
+    pub fn extract_method_info(&self, method_info: &MethodInfo) -> Option<Method> {
+        if self.is_skippable_method(&method_info.access_flags) {
+            return None;
+        }
+
         let name = method_info.get_name(&self.class_file.constant_pool);
         let sig = self.extract_method_signature(method_info);
         let descriptor = method_info.get_descriptor(&self.class_file.constant_pool);
@@ -325,17 +345,21 @@ impl<'a> ComponentExtractor<'a> {
                 .collect()
         };
 
-        Method {
+        Some(Method {
             name: name.to_string(),
             signature: sig,
             modifiers: "".to_string(),
             param_tys,
             ret_ty,
             type_params,
-        }
+        })
     }
 
-    pub fn extract_field_info(&self, field_info: &FieldInfo) -> Field {
+    pub fn extract_field_info(&self, field_info: &FieldInfo) -> Option<Field> {
+        if self.is_skippable_field(&field_info.access_flags) {
+            return None;
+        }
+
         let name = field_info.get_name(&self.class_file.constant_pool);
         let descriptor = field_info.get_descriptor(&self.class_file.constant_pool);
         let descriptor = parse_field_descriptor(descriptor);
@@ -348,17 +372,30 @@ impl<'a> ComponentExtractor<'a> {
             (&descriptor).into()
         };
 
-        Field {
+        Some(Field {
             name: name.to_string(),
             ty,
             signature: sig,
             modifiers: "".to_string(),
-        }
+        })
+    }
+
+    fn is_skippable_field(&self, access_flag: &FieldAccessFlags) -> bool {
+        let access_flag = access_flag.into();
+        !self.context.target_access_modifiers.contains(access_flag)
+    }
+
+    fn is_skippable_method(&self, access_flag: &MethodAccessFlags) -> bool {
+        let access_flag = access_flag.into();
+        !self.context.target_access_modifiers.contains(access_flag)
     }
 }
 
-pub fn extract_component(class_file: &ClassFile) -> Component {
-    let extractor = ComponentExtractor { class_file };
+pub fn extract_component(class_file: &ClassFile, context: &ExtractorContext) -> Component {
+    let extractor = ComponentExtractor {
+        class_file,
+        context,
+    };
     extractor.extract_component()
 }
 
@@ -447,5 +484,33 @@ impl From<&FieldSignature> for Ty {
 impl From<&FieldDescriptor> for Ty {
     fn from(value: &FieldDescriptor) -> Self {
         (&value.ty).into()
+    }
+}
+
+impl From<&FieldAccessFlags> for AccessModifier {
+    fn from(value: &FieldAccessFlags) -> Self {
+        if value.contains(FieldAccessFlags::PUBLIC) {
+            AccessModifier::PUBLIC
+        } else if value.contains(FieldAccessFlags::PROTECTED) {
+            AccessModifier::PROTECTED
+        } else if value.contains(FieldAccessFlags::PRIVATE) {
+            AccessModifier::PRIVATE
+        } else {
+            AccessModifier::DEFAULT
+        }
+    }
+}
+
+impl From<&MethodAccessFlags> for AccessModifier {
+    fn from(value: &MethodAccessFlags) -> Self {
+        if value.contains(MethodAccessFlags::PUBLIC) {
+            AccessModifier::PUBLIC
+        } else if value.contains(MethodAccessFlags::PROTECTED) {
+            AccessModifier::PROTECTED
+        } else if value.contains(MethodAccessFlags::PRIVATE) {
+            AccessModifier::PRIVATE
+        } else {
+            AccessModifier::DEFAULT
+        }
     }
 }
