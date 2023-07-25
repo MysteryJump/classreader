@@ -794,7 +794,8 @@ fn parse_constant_pool_info(input: &[u8]) -> IResult<&[u8], ConstantPoolInfo> {
                 ConstantPoolInfo::Utf8 {
                     length,
                     bytes: bytes.to_vec(),
-                    utf8_str: String::from_utf8(bytes.to_vec()).unwrap(),
+                    // UNSAFE: in the future, unsafe utf8 str will be discriminated
+                    utf8_str: unsafe { String::from_utf8_unchecked(bytes.to_vec()) },
                 },
             ))
         }
@@ -1273,13 +1274,13 @@ fn parse_type_annotation(input: &[u8]) -> IResult<&[u8], TypeAnnotation> {
         0x00 | 0x01 => parse_type_parameter_target(input)?,
         0x10 => parse_supertype_target(input)?,
         0x11 | 0x12 => parse_type_parameter_bound_target(input)?,
-        0x13 | 0x14 | 0x15 => parse_empty_target(input)?,
+        0x13..=0x15 => parse_empty_target(input)?,
         0x16 => parse_formal_parameter_target(input)?,
         0x17 => parse_throws_target(input)?,
         0x40 | 0x41 => parse_localvar_target(input)?,
         0x42 => parse_catch_target(input)?,
-        0x43 | 0x44 | 0x45 | 0x46 => parse_offset_target(input)?,
-        0x47 | 0x48 | 0x49 | 0x4A | 0x4B => parse_type_argument_target(input)?,
+        0x43..=0x46 => parse_offset_target(input)?,
+        0x47..=0x4B => parse_type_argument_target(input)?,
         _ => Err(nom::Err::Error(nom::error::Error::new(
             input,
             nom::error::ErrorKind::Tag,

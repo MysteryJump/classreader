@@ -13,7 +13,9 @@ use crate::{
     },
 };
 
-#[derive(Debug)]
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
 pub struct Component {
     minor_version: u16,
     major_version: u16,
@@ -21,20 +23,20 @@ pub struct Component {
     class_file_name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ComponentKind {
     Class(Class),
-    // Interface(Interface),
-    // Module(Module),
+    Interface(Interface),
+    Module(Module),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct TyName {
     package_name: Option<String>,
     name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum Ty {
     Prim(PrimTy),
     Reference(TyName),
@@ -43,7 +45,7 @@ pub enum Ty {
     Void,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum PrimTy {
     Byte,
     Char,
@@ -56,17 +58,17 @@ pub enum PrimTy {
     Void,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Class {
     qualified_name: String,
     super_class: Option<String>,
     interfaces: Vec<String>,
-    signature: ClassSignature,
+    signature: Option<ClassSignature>,
     methods: Vec<Method>,
     fields: Vec<Field>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Method {
     name: String,
     signature: Option<MethodSignature>,
@@ -76,7 +78,7 @@ pub struct Method {
     type_params: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Field {
     name: String,
     ty: Ty,
@@ -84,17 +86,21 @@ pub struct Field {
     modifiers: String,
 }
 
-// struct Module {
-//     access_flags: u16,
-//     name_index: u16,
-//     version_index: u16,
-//     requires: Vec<Require>,
-//     exports: Vec<Export>,
-//     opens: Vec<Open>,
-//     uses: Vec<Use>,
-//     provides: Vec<Provide>,
-//     attributes: Vec<AttributeInfo>,
-// }
+#[derive(Debug, Serialize)]
+pub struct Interface {
+    is_annotation: bool,
+    qualified_name: String,
+    interfaces: Vec<String>,
+    signature: Option<ClassSignature>,
+    methods: Vec<Method>,
+    fields: Vec<Field>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Module {
+    name: String,
+    version: String,
+}
 
 struct ComponentExtractor<'a, 'ctxt> {
     class_file: &'a ClassFile,
@@ -102,7 +108,8 @@ struct ComponentExtractor<'a, 'ctxt> {
 }
 
 bitflags::bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Serialize)]
+    #[serde(transparent)]
     pub struct AccessModifier: u16 {
         const PRIVATE = 0x0001;
         const PROTECTED = 0x0002;
@@ -114,20 +121,42 @@ bitflags::bitflags! {
 pub struct ExtractorContext {
     pub target_access_modifiers: AccessModifier,
 }
+enum Kind {
+    Class,
+    Interface,
+    AnnotationInterface,
+}
 
 impl<'a> ComponentExtractor<'a, '_> {
     fn extract_component(&self) -> Component {
         let class_file_name = self.get_source_file_name();
         let class_file = &self.class_file;
 
-        if class_file.access_flags.contains(AccessFlags::INTERFACE) {
-            todo!()
+        let comp_kind = if class_file.access_flags.contains(AccessFlags::INTERFACE) {
+            self.extract_class_component(
+                if class_file.access_flags.contains(AccessFlags::ANNOTATION) {
+                    Kind::AnnotationInterface
+                } else {
+                    Kind::Interface
+                },
+            )
         } else if class_file.access_flags.contains(AccessFlags::MODULE) {
-            todo!()
-        }
+            self.extract_module_component()
+        } else {
+            self.extract_class_component(Kind::Class)
+        };
 
+        Component {
+            minor_version: class_file.minor_version,
+            major_version: class_file.major_version,
+            kind: comp_kind,
+            class_file_name: class_file_name.unwrap().to_string(),
+        }
+    }
+
+    fn extract_class_component(&self, kind: Kind) -> ComponentKind {
         let ConstantPoolInfo::Class { name_index } =
-            &class_file.constant_pool[class_file.this_class as usize]
+            &self.class_file.constant_pool[self.class_file.this_class as usize]
         else {
             panic!("Class file has no this_class indexing into constant pool")
         };
@@ -135,13 +164,13 @@ impl<'a> ComponentExtractor<'a, '_> {
             bytes: _,
             length: _,
             utf8_str: qualified_name,
-        } = &class_file.constant_pool[*name_index as usize]
+        } = &self.class_file.constant_pool[*name_index as usize]
         else {
             panic!("Class file has no name")
         };
 
         let ConstantPoolInfo::Class { name_index } =
-            &class_file.constant_pool[class_file.super_class as usize]
+            &self.class_file.constant_pool[self.class_file.super_class as usize]
         else {
             panic!("Class file has no super_class indexing into constant pool")
         };
@@ -150,11 +179,16 @@ impl<'a> ComponentExtractor<'a, '_> {
                 bytes: _,
                 length: _,
                 utf8_str: super_class,
-            } = &class_file.constant_pool[*name_index as usize]
+            } = &self.class_file.constant_pool[*name_index as usize]
             else {
                 panic!("Class file has no name")
             };
-            Some(super_class.replace('/', "."))
+            let super_class = super_class.replace('/', ".");
+            if super_class == "java.lang.Object" {
+                None
+            } else {
+                Some(super_class)
+            }
         } else {
             None
         };
@@ -165,15 +199,15 @@ impl<'a> ComponentExtractor<'a, '_> {
             Some(class_signature)
         } else {
             None
-        }
-        .unwrap();
+        };
 
-        let interfaces = class_file
+        let interfaces = self
+            .class_file
             .interfaces
             .iter()
             .map(|interface| {
                 let ConstantPoolInfo::Class { name_index } =
-                    &class_file.constant_pool[*interface as usize]
+                    &self.class_file.constant_pool[*interface as usize]
                 else {
                     panic!("Class file has no interface indexing into constant pool")
                 };
@@ -181,7 +215,7 @@ impl<'a> ComponentExtractor<'a, '_> {
                     bytes: _,
                     length: _,
                     utf8_str: interface,
-                } = &class_file.constant_pool[*name_index as usize]
+                } = &self.class_file.constant_pool[*name_index as usize]
                 else {
                     panic!("Class file has no name")
                 };
@@ -189,22 +223,22 @@ impl<'a> ComponentExtractor<'a, '_> {
             })
             .collect();
 
-        let methods = class_file
+        let methods = self
+            .class_file
             .methods
             .iter()
             .filter_map(|x| self.extract_method_info(x))
             .collect::<Vec<_>>();
 
-        let fields = class_file
+        let fields = self
+            .class_file
             .fields
             .iter()
             .filter_map(|x| self.extract_field_info(x))
             .collect::<Vec<_>>();
 
-        Component {
-            minor_version: class_file.minor_version,
-            major_version: class_file.major_version,
-            kind: ComponentKind::Class(Class {
+        match kind {
+            Kind::Class => ComponentKind::Class(Class {
                 qualified_name: qualified_name.replace('/', "."),
                 super_class,
                 interfaces,
@@ -212,8 +246,62 @@ impl<'a> ComponentExtractor<'a, '_> {
                 methods,
                 fields,
             }),
-            class_file_name: class_file_name.unwrap().to_string(),
+            Kind::Interface | Kind::AnnotationInterface if super_class.is_some() => {
+                panic!("Interface has super class: {super_class:?}")
+            }
+            Kind::Interface => ComponentKind::Interface(Interface {
+                is_annotation: false,
+                qualified_name: qualified_name.replace('/', "."),
+                interfaces,
+                signature: class_sig,
+                methods,
+                fields,
+            }),
+            Kind::AnnotationInterface => ComponentKind::Interface(Interface {
+                is_annotation: true,
+                qualified_name: qualified_name.replace('/', "."),
+                interfaces,
+                signature: class_sig,
+                methods,
+                fields,
+            }),
         }
+    }
+
+    fn extract_module_component(&self) -> ComponentKind {
+        for attr in &self.class_file.attributes {
+            if let AttributeKind::Module {
+                module_name_index,
+                module_version_index,
+                ..
+            } = attr.kind
+            {
+                let ConstantPoolInfo::Utf8 {
+                    bytes: _,
+                    length: _,
+                    utf8_str: module_name,
+                } = &self.class_file.constant_pool[module_name_index as usize]
+                else {
+                    panic!("Class file has no module name")
+                };
+
+                let ConstantPoolInfo::Utf8 {
+                    bytes: _,
+                    length: _,
+                    utf8_str: module_version,
+                } = &self.class_file.constant_pool[module_version_index as usize]
+                else {
+                    panic!("Class file has no module version")
+                };
+
+                return ComponentKind::Module(Module {
+                    name: module_name.to_string(),
+                    version: module_version.to_string(),
+                });
+            }
+        }
+
+        panic!("Class file has no module attribute")
     }
 
     fn extract_class_signature(&self) -> Option<String> {
@@ -358,7 +446,6 @@ impl<'a> ComponentExtractor<'a, '_> {
     }
 
     fn is_skippable_field(&self, access_flag: &FieldAccessFlags) -> bool {
-        println!("{:?}", access_flag);
         if self.context.target_access_modifiers.is_empty() {
             false
         } else {

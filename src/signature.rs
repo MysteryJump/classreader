@@ -68,17 +68,18 @@ use nom::{
     combinator::{opt, peek},
     multi::{many0, many1},
     sequence::pair,
-    Err, IResult,
+    IResult,
 };
+use serde::Serialize;
 
 // JavaTypeSignature
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum TypeSignature {
     Reference(ReferenceTypeSignature),
     Base(BaseType),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum BaseType {
     Byte,
     Char,
@@ -90,57 +91,57 @@ pub enum BaseType {
     Boolean,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum ReferenceTypeSignature {
     TypeVariable(TypeVariableSignature),
     Class(ClassTypeSignature),
     Array(ArrayTypeSignature),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ClassTypeSignature {
     pub package_specifier: Option<String>,
     pub simple_class_type_signature: SimpleClassTypeSignature,
     pub class_type_signature_suffixes: Vec<SimpleClassTypeSignature>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SimpleClassTypeSignature {
     pub identifier: String,
     pub type_arguments: Option<Vec<TypeArgument>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum TypeArgument {
     ReferenceType(Option<WildcardIndicator>, ReferenceTypeSignature),
     Any,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum WildcardIndicator {
     Plus,
     Minus,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypeVariableSignature {
     pub identifier: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ArrayTypeSignature {
     pub java_type_signature: Box<TypeSignature>,
 }
 
 // ClassSignature
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ClassSignature {
     pub type_parameters: Option<Vec<TypeParameter>>,
     pub superclass_signature: ClassTypeSignature,
     pub superinterface_signatures: Vec<ClassTypeSignature>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypeParameter {
     pub identifier: String,
     pub class_bound: Option<ReferenceTypeSignature>,
@@ -148,7 +149,7 @@ pub struct TypeParameter {
 }
 
 // MethodSignature
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MethodSignature {
     pub type_parameters: Option<Vec<TypeParameter>>,
     pub parameters: Vec<TypeSignature>,
@@ -156,20 +157,20 @@ pub struct MethodSignature {
     pub throws_signatures: Vec<ThrowsSignature>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum Result {
     JavaTypeSignature(TypeSignature),
     VoidDescriptor,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum ThrowsSignature {
     ClassTypeSignature(ClassTypeSignature),
     TypeVariableSignature(TypeVariableSignature),
 }
 
 // FieldSignature
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FieldSignature {
     pub reference_type_signature: ReferenceTypeSignature,
 }
