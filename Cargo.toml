@@ -12,3 +12,4 @@ robusta_jni = "0.2.1"
 serde = { version = "1.0.175", features = ["derive"] }
 serde_json = "1.0.103"
 walkdir = "2.3.3"
+zip = "0.6.6"

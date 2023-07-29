@@ -47,15 +47,15 @@ pub enum Ty {
 
 #[derive(Debug, Serialize)]
 pub enum PrimTy {
-    Byte,
-    Char,
-    Double,
-    Float,
-    Int,
-    Long,
-    Short,
-    Boolean,
-    Void,
+    Byte = 0,
+    Char = 7,
+    Double = 5,
+    Float = 4,
+    Int = 2,
+    Long = 3,
+    Short = 1,
+    Boolean = 6,
+    Void = 8,
 }
 
 #[derive(Debug, Serialize)]

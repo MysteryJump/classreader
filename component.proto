@@ -1,0 +1,129 @@
+syntax = "proto3";
+package classreader_rs.component.v1;
+
+message Component {
+	string class_file_name = 1;
+	oneof component_kind {
+		Class class = 3;
+		Interface interface = 4;
+		Module module = 5;
+	}
+}
+
+message Class {
+	string qualified_name = 1;
+	ClassType superclass = 2;
+	repeated ClassType interface_types = 3;
+	repeated Field fields = 4;
+	repeated Method methods = 5;
+}
+
+message Interface {
+	string qualified_name = 1;
+	repeated ClassType interface_types = 2;
+	repeated Field fields = 3;
+	repeated Method methods = 4;
+	bool is_annotation = 5;
+}
+
+message Field {
+	string name = 1;
+	Type type = 2;
+	string modifiers = 3;
+}
+
+message Method {
+	string name = 1;
+	repeated Type parameter_types = 2;
+	Type return_type = 3;
+	repeated TypeParameter type_parameters = 4;
+	string modifiers = 5;
+	// 0: Method, 1: Constructor, 2: Static Initializer 
+	int32 method_kind = 6;
+}
+
+message Module {
+	string name = 1;
+	string version = 2;
+}
+
+// Type is using in the field type, parameter type, return type. 
+// This message is not using in class generic type within class signature.
+message Type {
+	oneof type_kind {
+		PrimitiveType primitive_type = 1;
+		ReferenceType reference_type = 2;
+	}
+}
+
+// PrimitiveType is a primitive type in Java also including void
+message PrimitiveType {
+	// Below are the primitive types in Java
+	// Byte: 0
+	// Short: 1
+	// Int: 2
+	// Long: 3
+	// Float: 4
+	// Double: 5
+	// Boolean: 6
+	// Char: 7
+	// Void: 8
+	int32 primitive_type_kind = 1;
+}
+
+// ReferenceType is a reference type in Java without array type and type variable
+message ReferenceType {
+	oneof reference_type_kind {
+		ClassType class_type = 1;
+		string type_variable = 2;
+		ArrayType array_type = 3;
+	}
+}
+
+// ClassType is a class type in Java
+message ClassType {
+	string package_specifier = 1;
+	string identifier = 2;
+	repeated TypeArgument type_arguments = 3;
+	repeated SimpleClassTypeSignature class_type_signature_suffixes = 4; 
+}
+
+// SimpleClassTypeSignature is using only in class_type_signature_suffixes
+message SimpleClassTypeSignature {
+	string identifier = 1;
+	repeated TypeArgument type_arguments = 2;
+}
+
+// SimpleType is a simple type in Java e.g. java.lang.String
+message SimpleType {
+	string identifier = 1;
+	repeated TypeArgument type_arguments = 2;
+}
+
+// TypeArgument is a type argument in Java
+message TypeArgument {
+	oneof type_argument_kind {
+		TypeArgumentReferenceType reference_type = 1;
+		bool any = 2;
+	}
+}
+
+message TypeArgumentReferenceType {
+	// WildcardType indicates extends or super in TypeArgument
+	// 0: None
+	// 1: + (extends)
+	// 2: - (super)
+	int32 wildcard_type = 1;
+	ReferenceType reference_type = 2;
+}
+
+// ArrayType is an array type in Java
+message ArrayType {
+	int32 dimension = 1;
+	Type inner_type = 2;
+}
+
+message TypeParameter {
+	string identifier = 1;
+	repeated ClassType type_bounds = 2;
+}

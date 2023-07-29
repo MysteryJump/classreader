@@ -13,7 +13,7 @@ ReferenceTypeSignature:
     ArrayTypeSignature
 ClassTypeSignature:
     L [PackageSpecifier] SimpleClassTypeSignature {ClassTypeSignatureSuffix} ;
-    PackageSpecifier:
+PackageSpecifier:
     Identifier / {PackageSpecifier}
 SimpleClassTypeSignature:
     Identifier [TypeArguments]
