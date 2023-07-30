@@ -17,10 +17,10 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct Component {
-    minor_version: u16,
-    major_version: u16,
-    kind: ComponentKind,
-    class_file_name: String,
+    pub minor_version: u16,
+    pub major_version: u16,
+    pub kind: ComponentKind,
+    pub class_file_name: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -32,8 +32,8 @@ pub enum ComponentKind {
 
 #[derive(Debug, Serialize)]
 pub struct TyName {
-    package_name: Option<String>,
-    name: String,
+    pub package_name: Option<String>,
+    pub name: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -60,46 +60,46 @@ pub enum PrimTy {
 
 #[derive(Debug, Serialize)]
 pub struct Class {
-    qualified_name: String,
-    super_class: Option<String>,
-    interfaces: Vec<String>,
-    signature: Option<ClassSignature>,
-    methods: Vec<Method>,
-    fields: Vec<Field>,
+    pub qualified_name: String,
+    pub super_class: Option<String>,
+    pub interfaces: Vec<String>,
+    pub signature: Option<ClassSignature>,
+    pub methods: Vec<Method>,
+    pub fields: Vec<Field>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Method {
-    name: String,
-    signature: Option<MethodSignature>,
-    modifiers: String,
-    param_tys: Vec<Ty>,
-    ret_ty: Ty,
-    type_params: Vec<String>,
+    pub name: String,
+    pub signature: Option<MethodSignature>,
+    pub modifiers: String,
+    pub param_tys: Vec<Ty>,
+    pub ret_ty: Ty,
+    pub type_params: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Field {
-    name: String,
-    ty: Ty,
-    signature: Option<FieldSignature>,
-    modifiers: String,
+    pub name: String,
+    pub ty: Ty,
+    pub signature: Option<FieldSignature>,
+    pub modifiers: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Interface {
-    is_annotation: bool,
-    qualified_name: String,
-    interfaces: Vec<String>,
-    signature: Option<ClassSignature>,
-    methods: Vec<Method>,
-    fields: Vec<Field>,
+    pub is_annotation: bool,
+    pub qualified_name: String,
+    pub interfaces: Vec<String>,
+    pub signature: Option<ClassSignature>,
+    pub methods: Vec<Method>,
+    pub fields: Vec<Field>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Module {
-    name: String,
-    version: String,
+    pub name: String,
+    pub version: String,
 }
 
 struct ComponentExtractor<'a, 'ctxt> {

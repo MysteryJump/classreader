@@ -1,5 +1,5 @@
 syntax = "proto3";
-package classreader_rs.component.v1;
+package classreader_rs.proto.component.v1;
 
 message Component {
 	string class_file_name = 1;
@@ -14,16 +14,18 @@ message Class {
 	string qualified_name = 1;
 	ClassType superclass = 2;
 	repeated ClassType interface_types = 3;
-	repeated Field fields = 4;
-	repeated Method methods = 5;
+	repeated TypeParameter type_parameters = 4;
+	repeated Field fields = 5;
+	repeated Method methods = 6;
 }
 
 message Interface {
 	string qualified_name = 1;
 	repeated ClassType interface_types = 2;
-	repeated Field fields = 3;
-	repeated Method methods = 4;
-	bool is_annotation = 5;
+	repeated TypeParameter type_parameters = 3;
+	repeated Field fields = 4;
+	repeated Method methods = 5;
+	bool is_annotation = 6;
 }
 
 message Field {

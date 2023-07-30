@@ -12,6 +12,7 @@ use crate::component::{AccessModifier, ExtractorContext};
 mod class_file;
 mod component;
 mod descriptor;
+mod proto;
 mod signature;
 
 fn main() {
