@@ -19,7 +19,13 @@ pub mod jni {
         #[allow(deprecated)]
         #[allow(clippy::needless_borrow)]
         pub extern "jni" fn extractFromJarPath(jar_path: String) -> Vec<u8> {
-            todo!()
+            jar_path.as_bytes().to_vec()
+        }
+
+        #[allow(deprecated)]
+        #[allow(clippy::needless_borrow)]
+        pub extern "jni" fn test(a: String) -> String {
+            a
         }
     }
 }
