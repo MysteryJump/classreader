@@ -17,7 +17,12 @@ public class ClassReader {
         System.out.println(test("hello world"));
 
         List bytes = extractFromJarPath("C:\\Users\\nreop\\Desktop\\test.jar");
-        System.out.println(bytes);
+        List<Byte> b2 = bytes;
+        byte[] b3 = new byte[bytes.size()];
+        for (int i = 0; i < bytes.size(); i++) {
+            b3[i] = b2.get(i);
+        }
+        System.out.println(new String(b3));
 
     }
 }

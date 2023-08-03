@@ -18,8 +18,8 @@ pub mod jni {
     impl ClassReader {
         #[allow(deprecated)]
         #[allow(clippy::needless_borrow)]
-        pub extern "jni" fn extractFromJarPath(jar_path: String) -> Vec<u8> {
-            jar_path.as_bytes().to_vec()
+        pub extern "jni" fn extractFromJarPath(jar_path: String) -> Vec<i8> {
+            jar_path.as_bytes().iter().map(|&x| x as i8).collect()
         }
 
         #[allow(deprecated)]
