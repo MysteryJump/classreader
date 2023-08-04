@@ -10,7 +10,7 @@ public class ClassReader {
 
     static {
         var pwd = System.getProperty("user.dir");
-        System.load(pwd + "/target/debug/classreader.dll");
+        System.load(pwd + "/target/debug/classreader_lib.dll");
     }
 
     public static void main(String[] args) {

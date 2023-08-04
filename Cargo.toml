@@ -8,6 +8,7 @@ build = "src/build.rs"
 
 [lib]
 crate-type = ["cdylib"]
+name = "classreader_lib"
 
 [dependencies]
 bitflags = { version = "2.3.3", features = ["serde"] }

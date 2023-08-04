@@ -1,6 +1,10 @@
 syntax = "proto3";
 package classreader_rs.proto.component.v1;
 
+message ComponentList {
+	repeated Component components = 1;
+}
+
 message Component {
 	string class_file_name = 1;
 	oneof component_kind {

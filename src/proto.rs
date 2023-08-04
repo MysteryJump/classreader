@@ -13,6 +13,14 @@ pub mod component {
     ));
 }
 
+impl From<&Vec<Component>> for component::ComponentList {
+    fn from(value: &Vec<Component>) -> Self {
+        Self {
+            components: value.iter().map(|x| x.into()).collect::<Vec<_>>(),
+        }
+    }
+}
+
 impl From<&Component> for component::Component {
     fn from(value: &Component) -> Self {
         Self {

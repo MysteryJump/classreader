@@ -1,8 +1,4 @@
-use std::{
-    io::Read,
-    path::{Path, PathBuf},
-    process::exit,
-};
+use std::{io::Read, path::Path, process::exit};
 
 use class_file::parse_class_file;
 use component::extract_component;
@@ -76,7 +72,7 @@ fn main() {
                     )
                 });
 
-                let comp = if let Err(e) = component {
+                let _comp = if let Err(e) = component {
                     println!("Error parsing class file: {:?}", e);
                     continue;
                 } else {

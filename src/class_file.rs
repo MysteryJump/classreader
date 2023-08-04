@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use bitflags::bitflags;
 use nom::{
     bytes::complete::{tag, take},
