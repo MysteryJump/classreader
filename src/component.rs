@@ -66,6 +66,7 @@ pub struct Class {
     pub signature: Option<ClassSignature>,
     pub methods: Vec<Method>,
     pub fields: Vec<Field>,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(Debug, Serialize)]
@@ -76,6 +77,7 @@ pub struct Method {
     pub param_tys: Vec<Ty>,
     pub ret_ty: Ty,
     pub type_params: Vec<String>,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(Debug, Serialize)]
@@ -84,6 +86,7 @@ pub struct Field {
     pub ty: Ty,
     pub signature: Option<FieldSignature>,
     pub modifiers: String,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(Debug, Serialize)]
@@ -94,6 +97,7 @@ pub struct Interface {
     pub signature: Option<ClassSignature>,
     pub methods: Vec<Method>,
     pub fields: Vec<Field>,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(Debug, Serialize)]
@@ -255,6 +259,8 @@ impl<'a> ComponentExtractor<'a, '_> {
             .filter_map(|x| self.extract_field_info(x))
             .collect::<Vec<_>>();
 
+        let annotations = self.extract_annotations(&self.class_file.attributes);
+
         match kind {
             Kind::Class => ComponentKind::Class(Class {
                 qualified_name: qualified_name.replace('/', "."),
@@ -263,6 +269,7 @@ impl<'a> ComponentExtractor<'a, '_> {
                 signature: class_sig,
                 methods,
                 fields,
+                annotations,
             }),
             Kind::Interface | Kind::AnnotationInterface if super_class.is_some() => {
                 panic!("Interface has super class: {super_class:?}")
@@ -274,6 +281,7 @@ impl<'a> ComponentExtractor<'a, '_> {
                 signature: class_sig,
                 methods,
                 fields,
+                annotations,
             }),
             Kind::AnnotationInterface => ComponentKind::Interface(Interface {
                 is_annotation: true,
@@ -282,6 +290,7 @@ impl<'a> ComponentExtractor<'a, '_> {
                 signature: class_sig,
                 methods,
                 fields,
+                annotations,
             }),
         }
     }
@@ -428,6 +437,8 @@ impl<'a> ComponentExtractor<'a, '_> {
                 .collect()
         };
 
+        let annotations = self.extract_annotations(&method_info.attributes);
+
         Some(Method {
             name: name.to_string(),
             signature: sig,
@@ -435,6 +446,7 @@ impl<'a> ComponentExtractor<'a, '_> {
             param_tys,
             ret_ty,
             type_params,
+            annotations,
         })
     }
 
@@ -455,11 +467,14 @@ impl<'a> ComponentExtractor<'a, '_> {
             (&descriptor).into()
         };
 
+        let annotations = self.extract_annotations(&field_info.attributes);
+
         Some(Field {
             name: name.to_string(),
             ty,
             signature: sig,
             modifiers: "".to_string(),
+            annotations,
         })
     }
 
