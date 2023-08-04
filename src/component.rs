@@ -1,7 +1,7 @@
 use crate::{
     class_file::{
-        AccessFlags, AttributeKind, ClassFile, ConstantPoolInfo, FieldAccessFlags, FieldInfo,
-        MethodAccessFlags, MethodInfo,
+        AccessFlags, Attribute, AttributeKind, ClassFile, ConstantPoolInfo, FieldAccessFlags,
+        FieldInfo, MethodAccessFlags, MethodInfo,
     },
     descriptor::{
         parse_field_descriptor, parse_method_descriptor, BaseTy, FieldDescriptor, FieldTy,
@@ -102,6 +102,23 @@ pub struct Module {
     pub version: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Annotation {
+    pub kind: AnnotationKind,
+    pub ty: Ty,
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Serialize)]
+pub enum AnnotationKind {
+    RuntimeInvisible,
+    RuntimeVisible,
+    RuntimeInvisibleParameter,
+    RuntimeVisibleParameter,
+    RuntimeInvisibleType,
+    RuntimeVisibleType,
+}
+
 struct ComponentExtractor<'a, 'ctxt> {
     class_file: &'a ClassFile,
     context: &'ctxt ExtractorContext,
@@ -121,6 +138,7 @@ bitflags::bitflags! {
 pub struct ExtractorContext {
     pub target_access_modifiers: AccessModifier,
 }
+
 enum Kind {
     Class,
     Interface,
@@ -443,6 +461,112 @@ impl<'a> ComponentExtractor<'a, '_> {
             signature: sig,
             modifiers: "".to_string(),
         })
+    }
+
+    fn extract_annotations(&self, attributes: &[Attribute]) -> Vec<Annotation> {
+        attributes
+            .iter()
+            .filter_map(|attr| {
+                match &attr.kind {
+                    t @ (AttributeKind::RuntimeVisibleAnnotations {
+                        num_annotations: _,
+                        annotations,
+                    }
+                    | AttributeKind::RuntimeInvisibleAnnotations {
+                        num_annotations: _,
+                        annotations,
+                    }) => {
+                        Some(annotations.iter().map(move |annotation| {
+                            let ConstantPoolInfo::Utf8 { utf8_str, .. } =
+                                &self.class_file.constant_pool[annotation.type_index as usize]
+                            else {
+                                panic!("type_idex of annotation in {attr:?} indicates invalid constant pool index");
+                            };
+
+                            Annotation {
+                                kind: match t {
+                                    AttributeKind::RuntimeVisibleAnnotations { .. } => {
+                                        AnnotationKind::RuntimeVisible
+                                    }
+                                    AttributeKind::RuntimeInvisibleAnnotations { .. } => {
+                                        AnnotationKind::RuntimeInvisible
+                                    }
+                                    _ => unreachable!(),
+                                },
+                                ty: (&parse_field_descriptor(utf8_str)).into(),
+                            }
+                        }).collect::<Vec<_>>())
+                    }
+                    t @ (AttributeKind::RuntimeVisibleParameterAnnotations {
+                        num_parameters: _,
+                        parameter_annotations,
+                    }
+                    | AttributeKind::RuntimeInvisibleParameterAnnotations {
+                        num_parameters: _,
+                        parameter_annotations,
+                    }) => {
+                        Some(parameter_annotations.iter().flat_map(move |annotation| {
+                            annotation
+                                .annotations
+                                .iter()
+                                .map(move |annotation| {
+                                    let ConstantPoolInfo::Utf8 { utf8_str, .. } =
+                                        &self.class_file.constant_pool
+                                            [annotation.type_index as usize]
+                                    else {
+                                        panic!("type_idex of annotation in {attr:?} indicates invalid constant pool index");
+                                    };
+
+                                    Annotation {
+                                        kind: match t {
+                                            AttributeKind::RuntimeVisibleParameterAnnotations {
+                                                ..
+                                            } => AnnotationKind::RuntimeVisibleParameter,
+                                            AttributeKind::RuntimeInvisibleParameterAnnotations {
+                                                ..
+                                            } => AnnotationKind::RuntimeInvisibleParameter,
+                                            _ => unreachable!(),
+                                        },
+                                        ty: (&parse_field_descriptor(utf8_str)).into(),
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                        }).collect())
+                    },
+                    t @ (AttributeKind::RuntimeVisibleTypeAnnotations {
+                        num_annotations: _,
+                        type_annotations,
+                    }
+                    | AttributeKind::RuntimeInvisibleTypeAnnotations {
+                        num_annotations: _,
+                        type_annotations,
+                    }) => {
+                        Some(type_annotations.iter().map(move |annotation| {
+                            let ConstantPoolInfo::Utf8 { utf8_str, .. } =
+                                &self.class_file.constant_pool[annotation.type_index as usize]
+                            else {
+                                panic!("type_idex of annotation in {attr:?} indicates invalid constant pool index");
+                            };
+
+                            Annotation {
+                                kind: match t {
+                                    AttributeKind::RuntimeVisibleTypeAnnotations { .. } => {
+                                        AnnotationKind::RuntimeVisibleType
+                                    }
+                                    AttributeKind::RuntimeInvisibleTypeAnnotations { .. } => {
+                                        AnnotationKind::RuntimeInvisibleType
+                                    }
+                                    _ => unreachable!(),
+                                },
+                                ty: (&parse_field_descriptor(utf8_str)).into(),
+                            }
+                        }).collect::<Vec<_>>())
+                    }
+                    _ => None,
+                }
+            })
+            .flatten()
+            .collect()
     }
 
     fn is_skippable_field(&self, access_flag: &FieldAccessFlags) -> bool {

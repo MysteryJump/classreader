@@ -353,7 +353,7 @@ pub struct LocalVariableTypeTableEntry {
 
 #[derive(Debug)]
 pub struct Annotation {
-    type_index: u16,
+    pub type_index: u16,
     num_element_value_pairs: u16,
     element_value_pairs: Vec<ElementValuePair>,
 }
@@ -412,7 +412,7 @@ pub enum ElementValue {
 #[derive(Debug)]
 pub struct ParameterAnnotation {
     num_annotations: u16,
-    annotations: Vec<Annotation>,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(Debug)]
@@ -420,7 +420,7 @@ pub struct TypeAnnotation {
     target_type: u8,
     target_info: TargetInfo,
     target_path: TypePath,
-    type_index: u16,
+    pub type_index: u16,
     num_element_value_pairs: u16,
     element_value_pairs: Vec<ElementValuePair>,
 }

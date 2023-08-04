@@ -82,6 +82,23 @@ fn main() {
         } else {
             let class_file = std::fs::read(p).unwrap();
             let (_, c) = parse_class_file(&class_file).unwrap();
+
+            for cc in &c.constant_pool {
+                match cc {
+                    class_file::ConstantPoolInfo::Utf8 { utf8_str, .. } => {
+                        println!("Utf8: {utf8_str}");
+                    }
+                    class_file::ConstantPoolInfo::Class { name_index } => {
+                        println!("Class: name_index: {name_index}")
+                    }
+                    _ => {
+                        println!("{cc:?}");
+                    }
+                }
+            }
+            println!("{:?}", c.attributes[2]);
+            println!("{:?}", c.methods[1].attributes[2]);
+
             let comp = extract_component(
                 &c,
                 &ExtractorContext {
