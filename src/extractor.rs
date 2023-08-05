@@ -9,7 +9,15 @@ use crate::{
 
 pub fn extract_members_from_jar<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, Box<dyn Error>> {
     let path = path.as_ref();
-    if !path.ends_with(".jar") && !path.ends_with(".base") {
+
+    if let Some(ext) = path.extension() {
+        if ext != "jar" && ext != "base" {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Path must be a JAR file",
+            )));
+        }
+    } else {
         return Err(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             "Path must be a JAR file",
@@ -29,10 +37,14 @@ pub fn extract_members_from_jar<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, Box<
             return Err(Box::new(e));
         }
     };
-
+    
     let mut components = Vec::new();
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).unwrap();
+        if !file.name().ends_with(".class") {
+            continue;
+        }
+
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();
 

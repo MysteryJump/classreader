@@ -4,11 +4,11 @@ pub mod descriptor;
 pub mod extractor;
 pub mod proto;
 pub mod signature;
+
 use robusta_jni::bridge;
 
 #[bridge]
 pub mod jni {
-
     use robusta_jni::convert::Signature;
     use std::error::Error;
 
@@ -24,7 +24,8 @@ pub mod jni {
         pub extern "jni" fn extractFromJarPath(jar_path: String) -> Vec<i8> {
             let components = match extractor::extract_members_from_jar(jar_path) {
                 Ok(c) => c,
-                Err(_) => {
+                Err(e) => {
+                    println!("Error: {}", e.description());
                     return vec![];
                 }
             };
