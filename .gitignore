@@ -2,3 +2,4 @@
 java.base
 /tmp
 *.class
+/outputs

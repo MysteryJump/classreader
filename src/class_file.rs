@@ -299,7 +299,13 @@ pub struct InnerClass {
     inner_class_info_index: u16,
     outer_class_info_index: u16,
     inner_name_index: u16,
-    inner_class_access_flags: InnerClassAccessFlags,
+    inner_class_access_flags: InnerClassAccessFlagsKind,
+}
+
+#[derive(Debug)]
+enum InnerClassAccessFlagsKind {
+    Invalid(u16),
+    Valid(InnerClassAccessFlags),
 }
 
 bitflags! {
@@ -1043,8 +1049,12 @@ fn parse_inner_class(input: &[u8]) -> IResult<&[u8], InnerClass> {
             inner_class_info_index,
             outer_class_info_index,
             inner_name_index,
-            inner_class_access_flags: InnerClassAccessFlags::from_bits(inner_class_access_flags)
-                .unwrap(),
+            inner_class_access_flags: match InnerClassAccessFlags::from_bits(
+                inner_class_access_flags,
+            ) {
+                Some(s) => InnerClassAccessFlagsKind::Valid(s),
+                None => InnerClassAccessFlagsKind::Invalid(inner_class_access_flags),
+            },
         },
     ))
 }

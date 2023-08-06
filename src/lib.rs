@@ -9,6 +9,7 @@ use robusta_jni::bridge;
 
 #[bridge]
 pub mod jni {
+    use prost::Message;
     use robusta_jni::convert::Signature;
     use std::error::Error;
 
@@ -30,7 +31,11 @@ pub mod jni {
                 }
             };
 
-            components.iter().map(|x| *x as i8).collect()
+            let component: crate::proto::component::ComponentList = (&components).into();
+            let mut encoded_buf = Vec::new();
+            component.encode(&mut encoded_buf).unwrap();
+
+            encoded_buf.iter().map(|x| *x as i8).collect()
         }
 
         #[allow(deprecated)]

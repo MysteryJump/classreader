@@ -172,7 +172,7 @@ impl<'a> ComponentExtractor<'a, '_> {
             minor_version: class_file.minor_version,
             major_version: class_file.major_version,
             kind: comp_kind,
-            class_file_name: class_file_name.unwrap().to_string(),
+            class_file_name: class_file_name.unwrap_or_default().to_string(),
         }
     }
 
@@ -326,13 +326,19 @@ impl<'a> ComponentExtractor<'a, '_> {
                     panic!("Class file has no module name")
                 };
 
-                let ConstantPoolInfo::Utf8 {
-                    bytes: _,
-                    length: _,
-                    utf8_str: module_version,
-                } = &self.class_file.constant_pool[module_version_index as usize]
-                else {
-                    panic!("Class file has no module version")
+                let module_version = if module_version_index == 0 {
+                    String::new()
+                } else {
+                    let ConstantPoolInfo::Utf8 {
+                        bytes: _,
+                        length: _,
+                        utf8_str: module_version,
+                    } = &self.class_file.constant_pool[module_version_index as usize]
+                    else {
+                        panic!("Class file has no module version")
+                    };
+
+                    module_version.to_string()
                 };
 
                 return ComponentKind::Module(Module {
