@@ -131,5 +131,12 @@ message ArrayType {
 
 message TypeParameter {
 	string identifier = 1;
-	repeated ClassType type_bounds = 2;
+	repeated TypeBound type_bounds = 2;
+}
+
+message TypeBound {
+	oneof TypeBoundKind {
+		ClassType class_type = 1;
+		string type_variable = 2;
+	}
 }

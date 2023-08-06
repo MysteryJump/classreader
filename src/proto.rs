@@ -180,46 +180,56 @@ impl From<&Module> for component::Module {
 
 impl From<&Method> for component::Method {
     fn from(value: &Method) -> Self {
-        let sig = value.signature.as_ref().unwrap();
-        let parameter_types = value
-            .param_tys
-            .iter()
-            .zip(sig.parameters.iter())
-            .map(|(ty, ty_sig)| convert_method_param_ty_to_proto_ty(Some(ty), ty_sig))
-            .collect::<Vec<_>>();
-
-        let type_parameters = sig
-            .type_parameters
-            .clone()
-            .unwrap_or(Vec::new())
-            .iter()
-            .map(|x| x.into())
-            .collect::<Vec<_>>();
-
         let method_kind = match &value.name {
             name if name == "<init>" => 1,
             name if name == "<clinit>" => 2,
             _ => 0,
         };
 
-        Self {
-            name: value.name.clone(),
-            parameter_types,
-            return_type: match &sig.result {
-                signature::Result::VoidDescriptor => Some(component::Type {
-                    type_kind: Some(component::r#type::TypeKind::PrimitiveType(
-                        component::PrimitiveType {
-                            primitive_type_kind: 8,
-                        },
-                    )),
-                }),
-                signature::Result::JavaTypeSignature(ty) => {
-                    Some(convert_method_param_ty_to_proto_ty(None, ty))
-                }
-            },
-            modifiers: value.modifiers.clone(),
-            method_kind,
-            type_parameters,
+        if let Some(sig) = value.signature.as_ref() {
+            let parameter_types = value
+                .param_tys
+                .iter()
+                .zip(sig.parameters.iter())
+                .map(|(ty, ty_sig)| convert_method_param_ty_to_proto_ty(Some(ty), ty_sig))
+                .collect::<Vec<_>>();
+
+            let type_parameters = sig
+                .type_parameters
+                .clone()
+                .unwrap_or(Vec::new())
+                .iter()
+                .map(|x| x.into())
+                .collect::<Vec<_>>();
+
+            Self {
+                name: value.name.clone(),
+                parameter_types,
+                return_type: match &sig.result {
+                    signature::Result::VoidDescriptor => Some(component::Type {
+                        type_kind: Some(component::r#type::TypeKind::PrimitiveType(
+                            component::PrimitiveType {
+                                primitive_type_kind: 8,
+                            },
+                        )),
+                    }),
+                    signature::Result::JavaTypeSignature(ty) => {
+                        Some(convert_method_param_ty_to_proto_ty(None, ty))
+                    }
+                },
+                modifiers: value.modifiers.clone(),
+                method_kind,
+                type_parameters,
+            }
+        } else {
+            Self {
+                name: value.name.clone(),
+                parameter_types: value.param_tys.iter().map(|x| x.into()).collect::<Vec<_>>(),
+                return_type: Some((&value.ret_ty).into()),
+                modifiers: value.modifiers.clone(),
+                method_kind,
+                type_parameters: Vec::new(),
+            }
         }
     }
 }
@@ -327,7 +337,10 @@ impl From<&Ty> for component::r#type::TypeKind {
                     ),
                 }))
             }
-            Ty::Void | Ty::TyVar(_) => unreachable!(),
+            Ty::Void => component::r#type::TypeKind::PrimitiveType(component::PrimitiveType {
+                primitive_type_kind: 8,
+            }),
+            Ty::TyVar(_) => unreachable!(),
         }
     }
 }
@@ -353,7 +366,7 @@ impl From<&ClassTypeSignature> for component::ClassType {
             .simple_class_type_signature
             .type_arguments
             .clone()
-            .unwrap_or(Vec::new())
+            .unwrap_or_default()
             .iter()
             .map(|x| x.into())
             .collect::<Vec<_>>();
@@ -462,25 +475,6 @@ impl From<&TypeArgument> for component::TypeArgument {
     }
 }
 
-impl From<&ReferenceTypeSignature> for component::ClassType {
-    fn from(value: &ReferenceTypeSignature) -> Self {
-        let ty_kind: component::r#type::TypeKind = value.into();
-        match ty_kind {
-            component::r#type::TypeKind::PrimitiveType(_) => unreachable!(),
-            component::r#type::TypeKind::ReferenceType(re) => {
-                let component::ReferenceType {
-                    reference_type_kind: tk,
-                } = re.as_ref();
-                if let Some(component::reference_type::ReferenceTypeKind::ClassType(ct)) = tk {
-                    ct.clone()
-                } else {
-                    unreachable!()
-                }
-            }
-        }
-    }
-}
-
 impl From<&TypeParameter> for component::TypeParameter {
     fn from(value: &TypeParameter) -> Self {
         let mut type_bounds = Vec::new();
@@ -495,6 +489,38 @@ impl From<&TypeParameter> for component::TypeParameter {
         Self {
             identifier: value.identifier.clone(),
             type_bounds,
+        }
+    }
+}
+
+impl From<&ReferenceTypeSignature> for component::TypeBound {
+    fn from(value: &ReferenceTypeSignature) -> Self {
+        let ty_kind: component::r#type::TypeKind = value.into();
+        match ty_kind {
+            component::r#type::TypeKind::PrimitiveType(_) => unreachable!(),
+            component::r#type::TypeKind::ReferenceType(re) => {
+                let component::ReferenceType {
+                    reference_type_kind: tk,
+                } = re.as_ref();
+
+                match tk.as_ref().unwrap() {
+                    component::reference_type::ReferenceTypeKind::ClassType(ct) => {
+                        component::TypeBound {
+                            type_bound_kind: Some(component::type_bound::TypeBoundKind::ClassType(
+                                ct.clone(),
+                            )),
+                        }
+                    }
+                    component::reference_type::ReferenceTypeKind::TypeVariable(ty) => {
+                        component::TypeBound {
+                            type_bound_kind: Some(
+                                component::type_bound::TypeBoundKind::TypeVariable(ty.clone()),
+                            ),
+                        }
+                    }
+                    component::reference_type::ReferenceTypeKind::ArrayType(_) => unreachable!(),
+                }
+            }
         }
     }
 }
