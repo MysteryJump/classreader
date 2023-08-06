@@ -11,7 +11,7 @@ pub fn extract_members_from_jar<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, Box<
     let path = path.as_ref();
 
     if let Some(ext) = path.extension() {
-        if ext != "jar" && ext != "base" {
+        if ext != "jar" && ext != "jmod" {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Path must be a JAR file",
@@ -37,7 +37,7 @@ pub fn extract_members_from_jar<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, Box<
             return Err(Box::new(e));
         }
     };
-    
+
     let mut components = Vec::new();
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).unwrap();

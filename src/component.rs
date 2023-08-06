@@ -191,28 +191,36 @@ impl<'a> ComponentExtractor<'a, '_> {
             panic!("Class file has no name")
         };
 
-        let ConstantPoolInfo::Class { name_index } =
-            &self.class_file.constant_pool[self.class_file.super_class as usize]
-        else {
-            panic!("Class file has no super_class indexing into constant pool")
-        };
-        let super_class = if *name_index != 0 {
-            let ConstantPoolInfo::Utf8 {
-                bytes: _,
-                length: _,
-                utf8_str: super_class,
-            } = &self.class_file.constant_pool[*name_index as usize]
-            else {
-                panic!("Class file has no name")
-            };
-            let super_class = super_class.replace('/', ".");
-            if super_class == "java.lang.Object" {
+        let super_class = if self.class_file.super_class == 0 {
+            if qualified_name == "java/lang/Object" {
                 None
             } else {
-                Some(super_class)
+                panic!("Class file has no super_class")
             }
         } else {
-            None
+            let ConstantPoolInfo::Class { name_index } =
+                &self.class_file.constant_pool[self.class_file.super_class as usize]
+            else {
+                panic!("Class file has no super_class indexing into constant pool")
+            };
+            if *name_index != 0 {
+                let ConstantPoolInfo::Utf8 {
+                    bytes: _,
+                    length: _,
+                    utf8_str: super_class,
+                } = &self.class_file.constant_pool[*name_index as usize]
+                else {
+                    panic!("Class file has no name")
+                };
+                let super_class = super_class.replace('/', ".");
+                if super_class == "java.lang.Object" {
+                    None
+                } else {
+                    Some(super_class)
+                }
+            } else {
+                None
+            }
         };
 
         let signature = self.extract_class_signature();
@@ -303,11 +311,17 @@ impl<'a> ComponentExtractor<'a, '_> {
                 ..
             } = attr.kind
             {
+                let ConstantPoolInfo::Module { name_index, .. } =
+                    &self.class_file.constant_pool[module_name_index as usize]
+                else {
+                    panic!("Class file has no this_class indexing into constant pool")
+                };
+
                 let ConstantPoolInfo::Utf8 {
                     bytes: _,
                     length: _,
                     utf8_str: module_name,
-                } = &self.class_file.constant_pool[module_name_index as usize]
+                } = &self.class_file.constant_pool[*name_index as usize]
                 else {
                     panic!("Class file has no module name")
                 };
