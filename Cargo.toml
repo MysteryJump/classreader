@@ -7,8 +7,12 @@ build = "src/build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-crate-type = ["cdylib"]
-name = "classreader_lib"
+crate-type = ["cdylib", "rlib"]
+name = "classreader"
+
+[[bin]]
+name = "classreader-bin"
+path = "src/main.rs"
 
 [dependencies]
 bitflags = { version = "2.3.3", features = ["serde"] }
