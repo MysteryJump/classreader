@@ -1,26 +1,87 @@
-use std::{io::Read, path::Path, process::exit};
+use std::{
+    error::Error,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    process::exit,
+};
 
 use class_file::parse_class_file;
 use component::extract_component;
+use extractor::extract_members_from_jar;
+
+use clap::{Args, Parser};
+use prost::Message;
+use rayon::prelude::*;
 
 use crate::component::{AccessModifier, ExtractorContext};
 
 mod class_file;
 mod component;
 mod descriptor;
+mod extractor;
 mod proto;
 mod signature;
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(flatten)]
+    output_kind: OutputKind,
+
+    /// The target class files or JAR files to parse
+    #[arg(required = true)]
+    input_paths: Vec<String>,
+
+    /// The output path to write the parsed class files to (default: current directory).
+    /// It must be a directory path.
+    #[arg(short, long)]
+    output_path: Option<String>,
+
+    /// Whether to print the time taken to parse all files (default: false)
+    #[arg(short, long, default_value_t = false)]
+    time: bool,
+
+    /// Whether to parse files in parallel (default: true)
+    #[arg(short, long, default_value_t = true)]
+    parallel: bool,
+}
+
+#[derive(Args, Debug)]
+#[group(multiple = false)]
+struct OutputKind {
+    /// Whether to output the parsed class files as JSON (default: false, conflicts with proto)
+    #[arg(short, long, default_value_t = false)]
+    json: bool,
+
+    /// Whether to output the parsed class files as Protocol Buffers (default: true, conflicts with json)
+    #[arg(short, long, default_value_t = true)]
+    proto: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum OKind {
+    Json,
+    Proto,
+}
+
 fn main() {
-    let args = std::env::args().collect::<Vec<_>>();
-    if args.len() != 2 {
-        eprintln!("Usage: {} <class file path>", args[0]);
-        exit(1);
-    }
+    let args = Cli::parse();
+    let output_kind = if args.output_kind.json {
+        OKind::Json
+    } else {
+        OKind::Proto
+    };
+
+    let start_time = if args.time {
+        Some(std::time::Instant::now())
+    } else {
+        None
+    };
 
     let paths = args
+        .input_paths
         .into_iter()
-        .skip(1)
         .flat_map(|x| {
             let p = Path::new(&x);
             if p.is_dir() {
@@ -30,7 +91,7 @@ fn main() {
                     .filter(|e| e.path().is_file())
                     .filter(|e| {
                         let ext = e.path().extension().unwrap();
-                        ext == "class" || ext == "jar"
+                        ext == "class" || ext == "jar" || ext == "jmod"
                     })
                     .map(|e| e.path().to_path_buf())
                     .collect::<Vec<_>>()
@@ -40,75 +101,115 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
-    for p in &paths {
-        if p.ends_with(".jar") {
-            let file = match std::fs::File::open(p) {
-                Ok(f) => f,
-                Err(e) => {
-                    println!("Error opening JAR file: {:?}", e);
-                    continue;
+    let output_dir = args
+        .output_path
+        .as_ref()
+        .map(Path::new)
+        .unwrap_or_else(|| Path::new("."));
+
+    if !output_dir.exists() {
+        std::fs::create_dir_all(output_dir).unwrap();
+    }
+
+    if output_dir.is_file() {
+        println!("Error: Output path must be a directory");
+        exit(1);
+    }
+
+    if args.parallel {
+        paths
+            .par_iter()
+            .for_each(|p| match extract_from_path(p, output_dir, output_kind) {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Error: {}", err);
                 }
-            };
-
-            let mut archive = match zip::ZipArchive::new(file) {
-                Ok(a) => a,
-                Err(e) => {
-                    println!("Error opening JAR file: {:?}", e);
+            });
+    } else {
+        for p in &paths {
+            match extract_from_path(p, output_dir, output_kind) {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Error: {}", err);
                     continue;
-                }
-            };
-
-            for i in 0..archive.len() {
-                let mut file = archive.by_index(i).unwrap();
-                let mut buf = Vec::new();
-                file.read_to_end(&mut buf).unwrap();
-
-                let component = parse_class_file(&buf).map(|(_, c)| {
-                    extract_component(
-                        &c,
-                        &ExtractorContext {
-                            target_access_modifiers: AccessModifier::empty(),
-                        },
-                    )
-                });
-
-                let _comp = if let Err(e) = component {
-                    println!("Error parsing class file: {:?}", e);
-                    continue;
-                } else {
-                    component.unwrap()
-                };
-            }
-        } else {
-            let class_file = std::fs::read(p).unwrap();
-            let (_, c) = parse_class_file(&class_file).unwrap();
-
-            for cc in &c.constant_pool {
-                match cc {
-                    class_file::ConstantPoolInfo::Utf8 { utf8_str, .. } => {
-                        println!("Utf8: {utf8_str}");
-                    }
-                    class_file::ConstantPoolInfo::Class { name_index } => {
-                        println!("Class: name_index: {name_index}")
-                    }
-                    _ => {
-                        println!("{cc:?}");
-                    }
                 }
             }
-            println!("{:?}", c.attributes[2]);
-            println!("{:?}", c.methods[1].attributes[2]);
-
-            let comp = extract_component(
-                &c,
-                &ExtractorContext {
-                    target_access_modifiers: AccessModifier::empty(),
-                },
-            );
-
-            println!("{comp:#?}");
-
-            println!("Successfully parsed class file: {:?}", p);
         }
     }
+
+    if let Some(start_time) = start_time {
+        let elapsed = start_time.elapsed();
+        println!(
+            "Parsed {} files in {}.{:03}s",
+            paths.len(),
+            elapsed.as_secs(),
+            elapsed.subsec_millis()
+        );
+    }
+}
+
+fn extract_from_path(
+    p: &PathBuf,
+    output_dir: &Path,
+    output_kind: OKind,
+) -> Result<(), Box<dyn Error>> {
+    let output_ext = match output_kind {
+        OKind::Json => "json",
+        OKind::Proto => "pb",
+    };
+
+    let ext = p.extension().unwrap_or_default();
+    let file_name = p.file_name().unwrap().to_str().unwrap();
+    let output_path = output_dir.join(format!("{file_name}.{output_ext}",));
+
+    if ext == "jar" || ext == "jmod" {
+        let components = match extract_members_from_jar(p) {
+            Ok(c) => c,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+
+        let mut writer = File::create(output_path).unwrap();
+
+        match output_kind {
+            OKind::Json => {
+                serde_json::to_writer(writer, &components).unwrap();
+            }
+            OKind::Proto => {
+                let component: crate::proto::component::ComponentList = (&components).into();
+
+                let mut encoded_buf = Vec::new();
+                component.encode(&mut encoded_buf).unwrap();
+                writer.write_all(&encoded_buf).unwrap();
+            }
+        }
+    } else {
+        let class_file = std::fs::read(p).unwrap();
+        let (_, c) = parse_class_file(&class_file).unwrap();
+
+        let comp = extract_component(
+            &c,
+            &ExtractorContext {
+                target_access_modifiers: AccessModifier::empty(),
+            },
+        );
+
+        let mut writer = File::create(output_path).unwrap();
+
+        match output_kind {
+            OKind::Json => {
+                serde_json::to_writer(writer, &comp).unwrap();
+            }
+            OKind::Proto => {
+                let component: crate::proto::component::Component = (&comp).into();
+
+                let mut encoded_buf = Vec::new();
+                component.encode(&mut encoded_buf).unwrap();
+                writer.write_all(&encoded_buf).unwrap();
+            }
+        }
+    }
+
+    Ok(())
 }

@@ -1,13 +1,11 @@
 use std::{error::Error, io::Read, path::Path};
 
-use prost::Message;
-
 use crate::{
     class_file::parse_class_file,
-    component::{extract_component, AccessModifier, ExtractorContext},
+    component::{extract_component, AccessModifier, Component, ExtractorContext},
 };
 
-pub fn extract_members_from_jar<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn extract_members_from_jar<P: AsRef<Path>>(path: P) -> Result<Vec<Component>, Box<dyn Error>> {
     let path = path.as_ref();
 
     if let Some(ext) = path.extension() {
@@ -67,9 +65,5 @@ pub fn extract_members_from_jar<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, Box<
         components.push(comp);
     }
 
-    let component: crate::proto::component::ComponentList = (&components).into();
-    let mut encoded_buf = Vec::new();
-    component.encode(&mut encoded_buf).unwrap();
-
-    Ok(encoded_buf)
+    Ok(components)
 }
