@@ -67,6 +67,8 @@ pub struct Class {
     pub methods: Vec<Method>,
     pub fields: Vec<Field>,
     pub annotations: Vec<Annotation>,
+    pub is_enum: bool,
+    pub is_abstract: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -268,6 +270,8 @@ impl<'a> ComponentExtractor<'a, '_> {
             .collect::<Vec<_>>();
 
         let annotations = self.extract_annotations(&self.class_file.attributes);
+        let is_abstract = self.class_file.access_flags.contains(AccessFlags::ABSTRACT);
+        let is_enum = self.class_file.access_flags.contains(AccessFlags::ENUM);
 
         match kind {
             Kind::Class => ComponentKind::Class(Class {
@@ -278,6 +282,8 @@ impl<'a> ComponentExtractor<'a, '_> {
                 methods,
                 fields,
                 annotations,
+                is_abstract,
+                is_enum,
             }),
             Kind::Interface | Kind::AnnotationInterface if super_class.is_some() => {
                 panic!("Interface has super class: {super_class:?}")

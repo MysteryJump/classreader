@@ -113,6 +113,8 @@ impl From<&Class> for component::Class {
             type_parameters,
             fields: value.fields.iter().map(|x| x.into()).collect::<Vec<_>>(),
             methods: value.methods.iter().map(|x| x.into()).collect::<Vec<_>>(),
+            is_enum: value.is_enum,
+            is_abstract: value.is_abstract,
         }
     }
 }
