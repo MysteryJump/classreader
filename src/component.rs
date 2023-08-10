@@ -80,6 +80,7 @@ pub struct Method {
     pub ret_ty: Ty,
     pub type_params: Vec<String>,
     pub annotations: Vec<Annotation>,
+    pub is_static: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -89,6 +90,7 @@ pub struct Field {
     pub signature: Option<FieldSignature>,
     pub modifiers: String,
     pub annotations: Vec<Annotation>,
+    pub is_static: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -465,6 +467,8 @@ impl<'a> ComponentExtractor<'a, '_> {
 
         let annotations = self.extract_annotations(&method_info.attributes);
 
+        let is_static = method_info.access_flags.contains(MethodAccessFlags::STATIC);
+
         Some(Method {
             name: name.to_string(),
             signature: sig,
@@ -473,6 +477,7 @@ impl<'a> ComponentExtractor<'a, '_> {
             ret_ty,
             type_params,
             annotations,
+            is_static,
         })
     }
 
@@ -495,12 +500,15 @@ impl<'a> ComponentExtractor<'a, '_> {
 
         let annotations = self.extract_annotations(&field_info.attributes);
 
+        let is_static = field_info.access_flags.contains(FieldAccessFlags::STATIC);
+
         Some(Field {
             name: name.to_string(),
             ty,
             signature: sig,
             modifiers: "".to_string(),
             annotations,
+            is_static,
         })
     }
 

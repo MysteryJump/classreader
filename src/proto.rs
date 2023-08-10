@@ -222,6 +222,7 @@ impl From<&Method> for component::Method {
                 modifiers: value.modifiers.clone(),
                 method_kind,
                 type_parameters,
+                is_static: value.is_static,
             }
         } else {
             Self {
@@ -231,6 +232,7 @@ impl From<&Method> for component::Method {
                 modifiers: value.modifiers.clone(),
                 method_kind,
                 type_parameters: Vec::new(),
+                is_static: value.is_static,
             }
         }
     }
@@ -242,6 +244,7 @@ impl From<&Field> for component::Field {
             name: value.name.clone(),
             r#type: Some(convert_field_ty_to_proto_ty(&value.ty, &value.signature)),
             modifiers: value.modifiers.clone(),
+            is_static: value.is_static,
         }
     }
 }
