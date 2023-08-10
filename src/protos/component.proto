@@ -21,6 +21,8 @@ message Class {
 	repeated TypeParameter type_parameters = 4;
 	repeated Field fields = 5;
 	repeated Method methods = 6;
+	bool is_abstract = 7;
+	bool is_enum = 8;
 }
 
 message Interface {
