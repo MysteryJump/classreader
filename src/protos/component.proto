@@ -38,6 +38,7 @@ message Field {
 	string name = 1;
 	Type type = 2;
 	string modifiers = 3;
+	bool is_static = 4;
 }
 
 message Method {
@@ -48,6 +49,7 @@ message Method {
 	string modifiers = 5;
 	// 0: Method, 1: Constructor, 2: Static Initializer 
 	int32 method_kind = 6;
+	bool is_static = 7;
 }
 
 message Module {
