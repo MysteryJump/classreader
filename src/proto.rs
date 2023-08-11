@@ -1,5 +1,8 @@
 use crate::{
-    component::{Class, Component, ComponentKind, Field, Interface, Method, Module, PrimTy, Ty},
+    component::{
+        Annotation, AnnotationKind, Class, Component, ComponentKind, Field, Interface, Method,
+        Module, PrimTy, Ty,
+    },
     signature::{
         self, ArrayTypeSignature, BaseType, ClassTypeSignature, FieldSignature,
         ReferenceTypeSignature, TypeArgument, TypeParameter, TypeSignature, WildcardIndicator,
@@ -115,6 +118,11 @@ impl From<&Class> for component::Class {
             methods: value.methods.iter().map(|x| x.into()).collect::<Vec<_>>(),
             is_enum: value.is_enum,
             is_abstract: value.is_abstract,
+            annotations: value
+                .annotations
+                .iter()
+                .map(|x| x.into())
+                .collect::<Vec<_>>(),
         }
     }
 }
@@ -167,6 +175,11 @@ impl From<&Interface> for component::Interface {
             fields: value.fields.iter().map(|x| x.into()).collect::<Vec<_>>(),
             methods: value.methods.iter().map(|x| x.into()).collect::<Vec<_>>(),
             is_annotation: value.is_annotation,
+            annotations: value
+                .annotations
+                .iter()
+                .map(|x| x.into())
+                .collect::<Vec<_>>(),
         }
     }
 }
@@ -223,6 +236,11 @@ impl From<&Method> for component::Method {
                 method_kind,
                 type_parameters,
                 is_static: value.is_static,
+                annotations: value
+                    .annotations
+                    .iter()
+                    .map(|x| x.into())
+                    .collect::<Vec<_>>(),
             }
         } else {
             Self {
@@ -233,6 +251,11 @@ impl From<&Method> for component::Method {
                 method_kind,
                 type_parameters: Vec::new(),
                 is_static: value.is_static,
+                annotations: value
+                    .annotations
+                    .iter()
+                    .map(|x| x.into())
+                    .collect::<Vec<_>>(),
             }
         }
     }
@@ -245,6 +268,11 @@ impl From<&Field> for component::Field {
             r#type: Some(convert_field_ty_to_proto_ty(&value.ty, &value.signature)),
             modifiers: value.modifiers.clone(),
             is_static: value.is_static,
+            annotations: value
+                .annotations
+                .iter()
+                .map(|x| x.into())
+                .collect::<Vec<_>>(),
         }
     }
 }
@@ -526,6 +554,22 @@ impl From<&ReferenceTypeSignature> for component::TypeBound {
                     component::reference_type::ReferenceTypeKind::ArrayType(_) => unreachable!(),
                 }
             }
+        }
+    }
+}
+
+impl From<&Annotation> for component::Annotation {
+    fn from(value: &Annotation) -> Self {
+        Self {
+            annotation_type: Some((&value.ty).into()),
+            annotation_kind: match &value.kind {
+                AnnotationKind::RuntimeInvisible => 0,
+                AnnotationKind::RuntimeVisible => 1,
+                AnnotationKind::RuntimeInvisibleParameter => 2,
+                AnnotationKind::RuntimeVisibleParameter => 3,
+                AnnotationKind::RuntimeInvisibleType => 4,
+                AnnotationKind::RuntimeVisibleType => 5,
+            },
         }
     }
 }
