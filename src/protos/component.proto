@@ -23,6 +23,7 @@ message Class {
 	repeated Method methods = 6;
 	bool is_abstract = 7;
 	bool is_enum = 8;
+	repeated Annotation annotations = 9;
 }
 
 message Interface {
@@ -32,13 +33,15 @@ message Interface {
 	repeated Field fields = 4;
 	repeated Method methods = 5;
 	bool is_annotation = 6;
+	repeated Annotation annotations = 7;
 }
 
 message Field {
 	string name = 1;
 	Type type = 2;
 	string modifiers = 3;
-	bool is_static = 4;
+	bool is_static = 4;	
+	repeated Annotation annotations = 5;
 }
 
 message Method {
@@ -50,6 +53,7 @@ message Method {
 	// 0: Method, 1: Constructor, 2: Static Initializer 
 	int32 method_kind = 6;
 	bool is_static = 7;
+	repeated Annotation annotations = 8;
 }
 
 message Module {
@@ -143,4 +147,12 @@ message TypeBound {
 		ClassType class_type = 1;
 		string type_variable = 2;
 	}
+}
+
+message Annotation {
+	Type annotation_type = 1;
+	// 0: RuntimeInvisible, 1: RuntimeVisible
+	// 2: RuntimeInvisibleParameter, 3: RuntimeVisibleParameter
+	// 4: RuntimeInvisibleType, 5: RuntimeVisibleType
+	int32 annotation_kind = 2;
 }
