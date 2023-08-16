@@ -5,6 +5,9 @@ pub mod extractor;
 pub mod proto;
 pub mod signature;
 
+pub use prost::bytes;
+
+use prost::{bytes::Buf, Message};
 use robusta_jni::bridge;
 
 #[bridge]
@@ -44,4 +47,8 @@ pub mod jni {
             a
         }
     }
+}
+
+pub fn decode_component_list<B: Buf>(buf: B) -> Result<proto::component::ComponentList, String> {
+    proto::component::ComponentList::decode(buf).map_err(|e| e.to_string())
 }
