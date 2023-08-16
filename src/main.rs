@@ -43,7 +43,7 @@ struct Cli {
     time: bool,
 
     /// Whether to parse files in parallel (default: true)
-    #[arg(short, long, default_value_t = true)]
+    #[arg(short = 'r', long, default_value_t = true)]
     parallel: bool,
 }
 
