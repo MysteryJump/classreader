@@ -588,3 +588,9 @@ fn convert_method_param_ty_to_proto_ty(_ty: Option<&Ty>, sig: &TypeSignature) ->
         type_kind: Some(tyk),
     }
 }
+
+impl From<Component> for component::Component {
+    fn from(value: Component) -> Self {
+        (&value).into()
+    }
+}
