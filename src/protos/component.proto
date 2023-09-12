@@ -146,6 +146,7 @@ message TypeBound {
 	oneof TypeBoundKind {
 		ClassType class_type = 1;
 		string type_variable = 2;
+		ArrayType array_type = 3;
 	}
 }
 

@@ -551,7 +551,13 @@ impl From<&ReferenceTypeSignature> for component::TypeBound {
                             ),
                         }
                     }
-                    component::reference_type::ReferenceTypeKind::ArrayType(_) => unreachable!(),
+                    component::reference_type::ReferenceTypeKind::ArrayType(ty) => {
+                        component::TypeBound {
+                            type_bound_kind: Some(component::type_bound::TypeBoundKind::ArrayType(
+                                *ty.clone(),
+                            )),
+                        }
+                    }
                 }
             }
         }
