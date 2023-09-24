@@ -9,7 +9,8 @@ use crate::{
     },
     signature::{
         parse_class_signature, parse_field_signature, parse_method_signature, BaseType,
-        ClassSignature, FieldSignature, MethodSignature, ReferenceTypeSignature, TypeSignature,
+        ClassSignature, FieldSignature, MethodSignature, ReferenceTypeSignature, Result,
+        TypeSignature,
     },
 };
 
@@ -430,9 +431,16 @@ impl<'a> ComponentExtractor<'a, '_> {
         let descriptor = method_info.get_descriptor(&self.class_file.constant_pool);
         let descriptor = parse_method_descriptor(descriptor);
 
-        let ret_ty = match descriptor.ret_desc {
-            ReturnDescriptor::TyDesc(desc) => (&desc.ty).into(),
-            ReturnDescriptor::Void => Ty::Void,
+        let ret_ty = if let Some(sig) = &sig {
+            match &sig.result {
+                Result::JavaTypeSignature(ty_sig) => ty_sig.into(),
+                Result::VoidDescriptor => Ty::Void,
+            }
+        } else {
+            match descriptor.ret_desc {
+                ReturnDescriptor::TyDesc(desc) => (&desc.ty).into(),
+                ReturnDescriptor::Void => Ty::Void,
+            }
         };
 
         let type_params = if let Some(sig) = &sig {
@@ -457,8 +465,7 @@ impl<'a> ComponentExtractor<'a, '_> {
                 })
                 .collect()
         } else {
-            let method_desc = parse_method_descriptor(descriptor.descriptor.as_str());
-            method_desc
+            descriptor
                 .param_descs
                 .iter()
                 .map(|param| (&param.ty).into())
@@ -680,9 +687,19 @@ impl From<&FieldTy> for Ty {
             FieldTy::Base(BaseTy::Long) => Ty::Prim(PrimTy::Long),
             FieldTy::Base(BaseTy::Short) => Ty::Prim(PrimTy::Short),
             FieldTy::Base(BaseTy::Void) => Ty::Prim(PrimTy::Void),
-            FieldTy::Obj(obj) => Ty::Reference(TyName {
-                package_name: None,
-                name: obj.class_name.clone(),
+            FieldTy::Obj(obj) => Ty::Reference({
+                let obj_name_split = obj.class_name.split('/').collect::<Vec<_>>();
+                let package_name = obj_name_split[..obj_name_split.len() - 1].join(".");
+                let name = obj_name_split.last().unwrap().to_string();
+
+                TyName {
+                    package_name: if package_name.is_empty() {
+                        None
+                    } else {
+                        Some(package_name)
+                    },
+                    name,
+                }
             }),
             FieldTy::Array(a) => {
                 let mut ty = a.ty.as_ref().into();

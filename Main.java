@@ -30,3 +30,13 @@ interface AA {
 
 @Target(ElementType.TYPE_USE)
 @interface AnnotationB {}
+
+class Bcdef {
+    public Vvvf vvvf() {
+        return null;
+    }
+
+    class Vvvf {
+        int a;
+    }
+}
